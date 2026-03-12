@@ -41,7 +41,7 @@ Guidelines:
     if (!response.ok) {
       const detail = await response.text();
       console.error('Anthropic API error:', detail);
-      return res.status(502).json({ error: 'AI service error' });
+      return res.status(502).json({ error: 'AI service error', detail });
     }
 
     const data = await response.json();
