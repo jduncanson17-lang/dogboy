@@ -590,7 +590,7 @@ function Onboarding({onDone}){
 // ──────────────────────────────────────────────
 // DASHBOARD
 // ──────────────────────────────────────────────
-function Dashboard({dog,dogId,sb,onReset,onLogout}){
+function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
   const [tab,setTab]=useState("home");
   const [msgs,setMsgs]=useState([{from:"ai",text:`Hey! 👋 I'm your Dog Boy AI — and I actually know about ${dog.name}.\n\nAsk me anything about behavior, health, food, or training. I give answers based on ${dog.name}'s specific profile, not generic dog advice.\n\nAnd don't miss the **Shop tab** — I've put together personalized product picks based on ${dog.name}'s breed and personality. 🛍️`}]);
   const [input,setInput]=useState("");
@@ -633,6 +633,41 @@ function Dashboard({dog,dogId,sb,onReset,onLogout}){
       if(data?.length)setLogs(data.map(l=>({id:l.id,category:l.mood||"Health",note:l.note,date:l.date})));
     });
   },[sb,dogId]);
+
+  // Save progress banner state
+  const [showSaveBanner,setShowSaveBanner]=useState(false);
+  const [saveEmail,setSaveEmail]=useState("");
+  const [savePassword,setSavePassword]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [saveError,setSaveError]=useState("");
+  const [savedOk,setSavedOk]=useState(false);
+
+  // Show banner after first real AI reply if not logged in
+  useEffect(()=>{
+    if(!user&&!dogId&&msgs.length>=2&&!savedOk)setShowSaveBanner(true);
+  },[msgs.length]);
+
+  const saveProgress=async()=>{
+    if(!sb||!saveEmail||!savePassword)return;
+    setSaving(true);setSaveError("");
+    try{
+      const{data,error:signUpErr}=await sb.auth.signUp({email:saveEmail,password:savePassword});
+      if(signUpErr)throw signUpErr;
+      const uid=data.user?.id;
+      if(!uid)throw new Error("Signup succeeded but no user returned. Check your email to confirm.");
+      const{data:dogData}=await sb.from('dogs').insert({user_id:uid,name:dog.name,breed:dog.breed,age:dog.age,weight:dog.weight,sex:dog.sex,traits:dog.traits||[]}).select().single();
+      if(dogData){
+        await sb.from('vaccines').insert(vaccines.map(v=>({dog_id:dogData.id,name:v.name,required:v.required,frequency:v.frequency,last_given:v.lastGiven||"",next_due:v.nextDue||"",notes:v.notes||""})));
+        if(meds.length)await sb.from('medications').insert(meds.map(m=>({dog_id:dogData.id,name:m.name,dose:m.dose,frequency:m.frequency,next_due:m.nextDue||""})));
+        if(vet.name)await sb.from('vet_info').insert({dog_id:dogData.id,name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt});
+        if(logs.length)await sb.from('health_logs').insert(logs.map(l=>({dog_id:dogData.id,note:l.note,mood:l.category,date:l.date})));
+        onSaveComplete&&onSaveComplete(dogData.id,data.user);
+      }
+      setSavedOk(true);setShowSaveBanner(false);
+    }catch(e){setSaveError(e.message);}
+    finally{setSaving(false);}
+  };
+
   const products=useMemo(()=>getProducts(dog),[dog]);
   const filteredProducts=shopFilter==="All"?products:products.filter(p=>p.cat===shopFilter);
   const shopCats=["All",...Array.from(new Set(products.map(p=>p.cat)))];
@@ -685,6 +720,26 @@ function Dashboard({dog,dogId,sb,onReset,onLogout}){
           </div>
         </div>
       </div>
+
+      {/* SAVE PROGRESS BANNER */}
+      {showSaveBanner&&!user&&(
+        <div className="fade-in" style={{background:"linear-gradient(135deg,#1c1917,#292524)",padding:"14px 16px",borderBottom:"1px solid #3d3530"}}>
+          {!savedOk&&<>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+              <div><div style={{fontSize:13,fontWeight:800,color:"#f59e0b",marginBottom:2}}>💾 Save your progress</div><div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Create a free account to keep {dog.name}'s data.</div></div>
+              <button onClick={()=>setShowSaveBanner(false)} style={{background:"none",border:"none",color:"rgba(255,255,255,.4)",fontSize:18,cursor:"pointer",padding:"0 4px",lineHeight:1}}>×</button>
+            </div>
+            {saveError&&<div style={{background:"#fee2e2",color:"#991b1b",borderRadius:8,padding:"8px 10px",fontSize:12,fontWeight:600,marginBottom:8}}>{saveError}</div>}
+            <div style={{display:"flex",gap:7,marginBottom:7}}>
+              <input style={{flex:1,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:8,padding:"8px 11px",fontSize:12,color:"#fff",fontFamily:"inherit",outline:"none"}} type="email" placeholder="Email" value={saveEmail} onChange={e=>setSaveEmail(e.target.value)}/>
+              <input style={{flex:1,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:8,padding:"8px 11px",fontSize:12,color:"#fff",fontFamily:"inherit",outline:"none"}} type="password" placeholder="Password" value={savePassword} onChange={e=>setSavePassword(e.target.value)}/>
+            </div>
+            <button onClick={saveProgress} disabled={saving||!saveEmail||!savePassword} style={{width:"100%",background:"#f59e0b",border:"none",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer",opacity:saving?.6:1,fontFamily:"inherit"}}>
+              {saving?"Saving...":"Save My Progress →"}
+            </button>
+          </>}
+        </div>
+      )}
 
       {/* CONTENT */}
       <div className="app-content">
@@ -1069,6 +1124,7 @@ function App(){
   const [page,setPage]=useState("loading");
   const [dog,setDog]=useState(null);
   const [dogId,setDogId]=useState(null);
+  const [user,setUser]=useState(null);
   const [sb,setSb]=useState(null);
 
   useEffect(()=>{
@@ -1077,12 +1133,11 @@ function App(){
       const client=supabase.createClient(supabaseUrl,supabaseKey);
       setSb(client);
       client.auth.getSession().then(({data:{session}})=>{
-        if(session){loadDog(client,session.user.id);}
-        else{setPage("auth");}
+        if(session){setUser(session.user);loadDog(client,session.user.id);}
+        else{setPage("landing");}
       });
       client.auth.onAuthStateChange((event,session)=>{
-        if(event==="SIGNED_OUT"){setDog(null);setDogId(null);setPage("auth");}
-        if(event==="SIGNED_IN"&&session){loadDog(client,session.user.id);}
+        if(event==="SIGNED_OUT"){setDog(null);setDogId(null);setUser(null);setPage("landing");}
       });
     }).catch(()=>setPage("landing"));
   },[]);
@@ -1091,17 +1146,6 @@ function App(){
     const{data}=await client.from('dogs').select('*').eq('user_id',userId).maybeSingle();
     if(data){setDog(data);setDogId(data.id);setPage("dashboard");}
     else{setPage("onboarding");}
-  };
-
-  const saveDog=async(dogData)=>{
-    if(!sb)return;
-    const{data:{user}}=await sb.auth.getUser();
-    const{data}=await sb.from('dogs').insert({user_id:user.id,name:dogData.name,breed:dogData.breed,age:dogData.age,weight:dogData.weight,sex:dogData.sex,traits:dogData.traits||[]}).select().single();
-    if(data){
-      await sb.from('vaccines').insert(DEFAULT_VACCINES.map(v=>({dog_id:data.id,name:v.name,required:v.required,frequency:v.frequency,last_given:"",next_due:"",notes:""})));
-      setDog(data);setDogId(data.id);
-    }
-    setPage("dashboard");
   };
 
   const logout=async()=>{
@@ -1117,10 +1161,9 @@ function App(){
   return(
     <>
       {showSplash&&<Splash done={()=>setShowSplash(false)}/>}
-      {page==="auth"&&sb&&<AuthScreen sb={sb}/>}
-      {page==="landing"&&<Landing onStart={()=>setPage(sb?"auth":"onboarding")}/>}
-      {page==="onboarding"&&<Onboarding onDone={sb?saveDog:d=>{setDog(d);setPage("dashboard");}}/>}
-      {page==="dashboard"&&dog&&<Dashboard dog={dog} dogId={dogId} sb={sb} onReset={()=>setPage("onboarding")} onLogout={logout}/>}
+      {page==="landing"&&<Landing onStart={()=>setPage("onboarding")}/>}
+      {page==="onboarding"&&<Onboarding onDone={d=>{setDog(d);setPage("dashboard");}}/>}
+      {page==="dashboard"&&dog&&<Dashboard dog={dog} dogId={dogId} sb={sb} user={user} onReset={()=>setPage("onboarding")} onLogout={logout} onSaveComplete={(id,u)=>{setDogId(id);setUser(u);}}/>}
     </>
   );
 }
