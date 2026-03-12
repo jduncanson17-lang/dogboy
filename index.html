@@ -564,7 +564,10 @@ function Dashboard({dog,onReset}){
   const sendMsg=(text)=>{
     const msg=text||input.trim();if(!msg)return;
     setMsgs(m=>[...m,{from:"user",text:msg}]);setInput("");setTyping(true);
-    setTimeout(()=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:getAI(msg,dog)}]);},1000+Math.random()*600);
+    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,dog})})
+      .then(r=>r.json())
+      .then(data=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:data.text||"Sorry, I had trouble with that. Try again?"}]);})
+      .catch(()=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:"Connection issue — please try again."}]);});
   };
 
   const bold=(t)=>t.split(/(\*\*[^*]+\*\*)/).map((p,i)=>p.startsWith("**")&&p.endsWith("**")?<strong key={i}>{p.slice(2,-2)}</strong>:p);
