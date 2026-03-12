@@ -13,6 +13,7 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
@@ -293,6 +294,64 @@ function getProducts(dog){
 }
 
 // ──────────────────────────────────────────────
+// AUTH SCREEN
+// ──────────────────────────────────────────────
+function AuthScreen({sb}){
+  const [mode,setMode]=useState("login");
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [message,setMessage]=useState("");
+
+  const submit=async()=>{
+    setLoading(true);setError("");setMessage("");
+    try{
+      if(mode==="signup"){
+        const{error:e}=await sb.auth.signUp({email,password});
+        if(e)throw e;
+        setMessage("Check your email to confirm your account, then log in.");
+        setMode("login");
+      }else{
+        const{error:e}=await sb.auth.signInWithPassword({email,password});
+        if(e)throw e;
+      }
+    }catch(e){setError(e.message);}
+    finally{setLoading(false);}
+  };
+
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",background:"linear-gradient(160deg,#fffbeb 0%,#fef3c7 40%,#fde68a 100%)"}}>
+      <div style={{width:"100%",maxWidth:380}}>
+        <div style={{textAlign:"center",marginBottom:36}}>
+          <div style={{fontSize:52,marginBottom:10}}>🐾</div>
+          <h1 style={{fontSize:28,fontWeight:900,letterSpacing:"-1px",marginBottom:6}}>Dog Boy</h1>
+          <p style={{fontSize:14,color:"#78350f"}}>The AI companion that actually knows your dog.</p>
+        </div>
+        <div style={{background:"#fff",borderRadius:20,padding:"28px 24px",border:"1px solid #f0e8d6",boxShadow:"0 4px 24px rgba(0,0,0,.07)"}}>
+          <div style={{display:"flex",background:"#fef3c7",borderRadius:10,padding:3,marginBottom:22}}>
+            {["login","signup"].map(m=><button key={m} onClick={()=>{setMode(m);setError("");setMessage("");}} style={{flex:1,padding:"8px",border:"none",borderRadius:8,fontFamily:"inherit",fontWeight:700,fontSize:13.5,cursor:"pointer",background:mode===m?"#fff":"transparent",color:mode===m?"#1c1917":"#92400e",boxShadow:mode===m?"0 1px 4px rgba(0,0,0,.1)":"none",transition:"all .15s"}}>{m==="login"?"Log In":"Sign Up"}</button>)}
+          </div>
+          {message&&<div style={{background:"#dcfce7",color:"#166534",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:600,marginBottom:14}}>{message}</div>}
+          {error&&<div style={{background:"#fee2e2",color:"#991b1b",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:600,marginBottom:14}}>{error}</div>}
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:5}}>Email</label>
+            <input className="input" type="email" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          </div>
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:5}}>Password</label>
+            <input className="input" type="password" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+          </div>
+          <button className="btn btn-primary" style={{width:"100%",padding:"14px",opacity:loading?.6:1}} onClick={submit} disabled={loading||!email||!password}>
+            {loading?"...":(mode==="login"?"Log In →":"Create Account →")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // SPLASH SCREEN
 // ──────────────────────────────────────────────
 function Splash({done}){
@@ -531,23 +590,49 @@ function Onboarding({onDone}){
 // ──────────────────────────────────────────────
 // DASHBOARD
 // ──────────────────────────────────────────────
-function Dashboard({dog,onReset}){
+function Dashboard({dog,dogId,sb,onReset,onLogout}){
   const [tab,setTab]=useState("home");
   const [msgs,setMsgs]=useState([{from:"ai",text:`Hey! 👋 I'm your Dog Boy AI — and I actually know about ${dog.name}.\n\nAsk me anything about behavior, health, food, or training. I give answers based on ${dog.name}'s specific profile, not generic dog advice.\n\nAnd don't miss the **Shop tab** — I've put together personalized product picks based on ${dog.name}'s breed and personality. 🛍️`}]);
   const [input,setInput]=useState("");
   const [typing,setTyping]=useState(false);
   const [vaccines,setVaccines]=useState(DEFAULT_VACCINES);
+  const [vacIds,setVacIds]=useState({});
   const [editVax,setEditVax]=useState(null);
   const [meds,setMeds]=useState([]);
   const [showMedForm,setShowMedForm]=useState(false);
   const [newMed,setNewMed]=useState({name:"",dose:"",frequency:"",nextDue:""});
   const [vet,setVet]=useState({name:"",phone:"",address:"",nextAppt:"",reason:""});
+  const [vetDbId,setVetDbId]=useState(null);
   const [editVet,setEditVet]=useState(false);
   const [logs,setLogs]=useState([]);
   const [logCat,setLogCat]=useState("Health");
   const [logNote,setLogNote]=useState("");
   const [shopFilter,setShopFilter]=useState("All");
   const msgEnd=useRef(null);
+
+  useEffect(()=>{
+    if(!sb||!dogId)return;
+    sb.from('vaccines').select('*').eq('dog_id',dogId).then(({data})=>{
+      if(data?.length){
+        const ids={};
+        const mapped=DEFAULT_VACCINES.map(dv=>{
+          const found=data.find(d=>d.name===dv.name);
+          if(found){ids[dv.id]=found.id;return{...dv,lastGiven:found.last_given||"",nextDue:found.next_due||"",notes:found.notes||""};}
+          return dv;
+        });
+        setVaccines(mapped);setVacIds(ids);
+      }
+    });
+    sb.from('medications').select('*').eq('dog_id',dogId).then(({data})=>{
+      if(data?.length)setMeds(data.map(m=>({id:m.id,name:m.name,dose:m.dose||"",frequency:m.frequency||"",nextDue:m.next_due||""})));
+    });
+    sb.from('vet_info').select('*').eq('dog_id',dogId).maybeSingle().then(({data})=>{
+      if(data){setVet({name:data.name||"",phone:data.phone||"",address:data.address||"",nextAppt:data.next_appt||"",reason:""});setVetDbId(data.id);}
+    });
+    sb.from('health_logs').select('*').eq('dog_id',dogId).order('created_at',{ascending:false}).then(({data})=>{
+      if(data?.length)setLogs(data.map(l=>({id:l.id,category:l.mood||"Health",note:l.note,date:l.date})));
+    });
+  },[sb,dogId]);
   const products=useMemo(()=>getProducts(dog),[dog]);
   const filteredProducts=shopFilter==="All"?products:products.filter(p=>p.cat===shopFilter);
   const shopCats=["All",...Array.from(new Set(products.map(p=>p.cat)))];
@@ -759,7 +844,10 @@ function Dashboard({dog,onReset}){
                     <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Reason</label><input className="input-sm" style={{width:"100%"}} placeholder="Annual checkup" value={vet.reason} onChange={e=>setVet(v=>({...v,reason:e.target.value}))}/></div>
                   </div>
                   <div style={{marginBottom:14,background:"#e0f2fe",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:11.5,fontWeight:700,color:"#0369a1"}}>🔗 COMING SOON — VET PORTAL SYNC</div><div style={{fontSize:12,color:"#0c4a6e",marginTop:3}}>We're building direct integrations with Covetrus, IDEXX and ezyVet so your records sync automatically.</div></div>
-                  <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setEditVet(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" onClick={()=>setEditVet(false)} style={{flex:2}}>Save</button></div>
+                  <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setEditVet(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" onClick={async()=>{
+                    if(sb&&dogId){if(vetDbId){await sb.from('vet_info').update({name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt}).eq('id',vetDbId);}else{const{data}=await sb.from('vet_info').insert({dog_id:dogId,name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt}).select().single();if(data)setVetDbId(data.id);}}
+                    setEditVet(false);
+                  }} style={{flex:2}}>Save</button></div>
                 </div>
               )}
             </div>
@@ -781,7 +869,10 @@ function Dashboard({dog,onReset}){
                           <div><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Next Due</label><input className="input-sm" style={{width:"100%"}} type="date" value={v.nextDue} onChange={e=>{const u=[...vaccines];u[i]={...u[i],nextDue:e.target.value};setVaccines(u);}}/></div>
                         </div>
                         <input className="input-sm" style={{width:"100%",marginBottom:10}} placeholder="Notes..." value={v.notes} onChange={e=>{const u=[...vaccines];u[i]={...u[i],notes:e.target.value};setVaccines(u);}}/>
-                        <button className="btn-sm" style={{width:"100%"}} onClick={()=>setEditVax(null)}>Save</button>
+                        <button className="btn-sm" style={{width:"100%"}} onClick={async()=>{
+                          if(sb&&dogId){const vac=vaccines[i];const sbId=vacIds[vac.id];if(sbId){await sb.from('vaccines').update({last_given:vac.lastGiven,next_due:vac.nextDue,notes:vac.notes}).eq('id',sbId);}else{const{data}=await sb.from('vaccines').insert({dog_id:dogId,name:vac.name,required:vac.required,frequency:vac.frequency,last_given:vac.lastGiven,next_due:vac.nextDue,notes:vac.notes}).select().single();if(data)setVacIds(m=>({...m,[vac.id]:data.id}));}}
+                          setEditVax(null);
+                        }}>Save</button>
                       </div>
                     ):(
                       <div onClick={()=>setEditVax(i)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 0",borderBottom:i<vaccines.length-1?"1px solid #f5f5f0":"none",cursor:"pointer"}}>
@@ -813,7 +904,7 @@ function Dashboard({dog,onReset}){
               {meds.map((m,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f5f5f0"}}>
                   <div><div style={{fontWeight:600,fontSize:13.5}}>{m.name}</div><div style={{fontSize:11,color:"#a8a29e"}}>{m.dose}{m.frequency?` · ${m.frequency}`:""}</div>{m.nextDue&&<div style={{fontSize:11,color:"#78350f"}}>Next: {new Date(m.nextDue).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>}</div>
-                  <button onClick={()=>setMeds(ms=>ms.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"#d4c5a9",fontSize:20,cursor:"pointer",padding:"0 6px"}}>×</button>
+                  <button onClick={async()=>{if(sb&&m.id)await sb.from('medications').delete().eq('id',m.id);setMeds(ms=>ms.filter((_,j)=>j!==i));}} style={{background:"none",border:"none",color:"#d4c5a9",fontSize:20,cursor:"pointer",padding:"0 6px"}}>×</button>
                 </div>
               ))}
               {showMedForm&&<div className="fade-in" style={{marginTop:meds.length>0?12:0}}>
@@ -821,7 +912,11 @@ function Dashboard({dog,onReset}){
                   <div key={k} style={{marginBottom:9}}><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>{l}</label><input className="input-sm" style={{width:"100%"}} placeholder={p} value={newMed[k]} onChange={e=>setNewMed(m=>({...m,[k]:e.target.value}))}/></div>
                 ))}
                 <div style={{marginBottom:12}}><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Next Due</label><input className="input-sm" style={{width:"100%"}} type="date" value={newMed.nextDue} onChange={e=>setNewMed(m=>({...m,nextDue:e.target.value}))}/></div>
-                <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setShowMedForm(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" style={{flex:2}} disabled={!newMed.name} onClick={()=>{setMeds(ms=>[...ms,newMed]);setNewMed({name:"",dose:"",frequency:"",nextDue:""});setShowMedForm(false);}}>Add</button></div>
+                <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setShowMedForm(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" style={{flex:2}} disabled={!newMed.name} onClick={async()=>{
+                  let med={...newMed,id:Date.now()};
+                  if(sb&&dogId){const{data}=await sb.from('medications').insert({dog_id:dogId,name:newMed.name,dose:newMed.dose,frequency:newMed.frequency,next_due:newMed.nextDue}).select().single();if(data)med={...med,id:data.id};}
+                  setMeds(ms=>[...ms,med]);setNewMed({name:"",dose:"",frequency:"",nextDue:""});setShowMedForm(false);
+                }}>Add</button></div>
               </div>}
               {meds.length>0&&!showMedForm&&<button className="btn-ghost-sm" style={{width:"100%",marginTop:12}} onClick={()=>setShowMedForm(true)}>+ Add Another</button>}
             </div>
@@ -883,7 +978,13 @@ function Dashboard({dog,onReset}){
                 ))}
               </div>
               <textarea className="input" rows={3} placeholder={`What's going on with ${dog.name}?`} value={logNote} onChange={e=>setLogNote(e.target.value)} style={{resize:"none",marginBottom:10,fontSize:14}}/>
-              <button className="btn btn-primary" style={{width:"100%",padding:"11px",fontSize:14}} onClick={()=>{if(!logNote.trim())return;setLogs(l=>[{category:logCat,note:logNote,date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),id:Date.now()},...l]);setLogNote("");}} disabled={!logNote.trim()}>+ Add Entry</button>
+              <button className="btn btn-primary" style={{width:"100%",padding:"11px",fontSize:14}} onClick={async()=>{
+                if(!logNote.trim())return;
+                const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+                let entry={category:logCat,note:logNote,date:dateStr,id:Date.now()};
+                if(sb&&dogId){const{data}=await sb.from('health_logs').insert({dog_id:dogId,note:logNote,mood:logCat,date:dateStr}).select().single();if(data)entry={...entry,id:data.id};}
+                setLogs(l=>[entry,...l]);setLogNote("");
+              }} disabled={!logNote.trim()}>+ Add Entry</button>
             </div>
           </div>
           {logs.length===0?(
@@ -930,8 +1031,9 @@ function Dashboard({dog,onReset}){
               <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{dog.traits.map(t=><span key={t} style={{background:"#fef3c7",color:"#78350f",borderRadius:20,padding:"5px 13px",fontSize:13,fontWeight:600}}>{t}</span>)}</div>
             </div>
           </div>}
-          <div style={{margin:"0 16px 14px"}}>
+          <div style={{margin:"0 16px 14px",display:"flex",flexDirection:"column",gap:10}}>
             <button onClick={onReset} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #f0e8d6",borderRadius:12,color:"#78350f",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>+ Add Another Dog</button>
+            <button onClick={onLogout} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #fee2e2",borderRadius:12,color:"#991b1b",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>Log Out</button>
           </div>
           <div style={{margin:"0 16px",background:"#1c1917",borderRadius:16,padding:"16px 18px"}}>
             <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>💰 Revenue Model</div>
@@ -964,14 +1066,61 @@ function Dashboard({dog,onReset}){
 // ──────────────────────────────────────────────
 function App(){
   const [showSplash,setShowSplash]=useState(true);
-  const [page,setPage]=useState("landing");
+  const [page,setPage]=useState("loading");
   const [dog,setDog]=useState(null);
+  const [dogId,setDogId]=useState(null);
+  const [sb,setSb]=useState(null);
+
+  useEffect(()=>{
+    fetch('/api/config').then(r=>r.json()).then(({supabaseUrl,supabaseKey})=>{
+      if(!supabaseUrl||!supabaseKey){setPage("landing");return;}
+      const client=supabase.createClient(supabaseUrl,supabaseKey);
+      setSb(client);
+      client.auth.getSession().then(({data:{session}})=>{
+        if(session){loadDog(client,session.user.id);}
+        else{setPage("auth");}
+      });
+      client.auth.onAuthStateChange((event,session)=>{
+        if(event==="SIGNED_OUT"){setDog(null);setDogId(null);setPage("auth");}
+        if(event==="SIGNED_IN"&&session){loadDog(client,session.user.id);}
+      });
+    }).catch(()=>setPage("landing"));
+  },[]);
+
+  const loadDog=async(client,userId)=>{
+    const{data}=await client.from('dogs').select('*').eq('user_id',userId).maybeSingle();
+    if(data){setDog(data);setDogId(data.id);setPage("dashboard");}
+    else{setPage("onboarding");}
+  };
+
+  const saveDog=async(dogData)=>{
+    if(!sb)return;
+    const{data:{user}}=await sb.auth.getUser();
+    const{data}=await sb.from('dogs').insert({user_id:user.id,name:dogData.name,breed:dogData.breed,age:dogData.age,weight:dogData.weight,sex:dogData.sex,traits:dogData.traits||[]}).select().single();
+    if(data){
+      await sb.from('vaccines').insert(DEFAULT_VACCINES.map(v=>({dog_id:data.id,name:v.name,required:v.required,frequency:v.frequency,last_given:"",next_due:"",notes:""})));
+      setDog(data);setDogId(data.id);
+    }
+    setPage("dashboard");
+  };
+
+  const logout=async()=>{
+    if(sb)await sb.auth.signOut();
+  };
+
+  if(page==="loading")return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#fffbeb"}}>
+      <div style={{fontSize:40}}>🐾</div>
+    </div>
+  );
+
   return(
     <>
       {showSplash&&<Splash done={()=>setShowSplash(false)}/>}
-      {page==="landing"&&<Landing onStart={()=>setPage("onboarding")}/>}
-      {page==="onboarding"&&<Onboarding onDone={d=>{setDog(d);setPage("dashboard");}}/>}
-      {page==="dashboard"&&dog&&<Dashboard dog={dog} onReset={()=>setPage("onboarding")}/>}
+      {page==="auth"&&sb&&<AuthScreen sb={sb}/>}
+      {page==="landing"&&<Landing onStart={()=>setPage(sb?"auth":"onboarding")}/>}
+      {page==="onboarding"&&<Onboarding onDone={sb?saveDog:d=>{setDog(d);setPage("dashboard");}}/>}
+      {page==="dashboard"&&dog&&<Dashboard dog={dog} dogId={dogId} sb={sb} onReset={()=>setPage("onboarding")} onLogout={logout}/>}
     </>
   );
 }
