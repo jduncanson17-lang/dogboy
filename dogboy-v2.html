@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Dog Boy" />
+  <meta name="theme-color" content="#f59e0b" />
+  <meta name="description" content="The AI companion that actually knows your dog." />
+  <title>Dog Boy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+    body{font-family:'Inter',sans-serif;background:#fffbeb;color:#1c1917;-webkit-font-smoothing:antialiased;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:#d6c8aa;border-radius:4px;}
+
+    /* Animations */
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+    @keyframes slideUp{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+    @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+    @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4;}30%{transform:translateY(-6px);opacity:1;}}
+    @keyframes shimmer{0%{background-position:-200px 0;}100%{background-position:calc(200px + 100%) 0;}}
+    @keyframes splashPaw{0%{transform:scale(0) rotate(-20deg);opacity:0;}60%{transform:scale(1.2) rotate(5deg);opacity:1;}100%{transform:scale(1) rotate(0deg);opacity:1;}}
+    @keyframes dashRotate{to{stroke-dashoffset:0;}}
+    @keyframes gradientShift{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
+    @keyframes cardSlideIn{from{opacity:0;transform:translateX(-16px);}to{opacity:1;transform:translateX(0);}}
+
+    .fade-up{animation:fadeUp .4s ease both;}
+    .fade-in{animation:fadeIn .3s ease both;}
+    .slide-up{animation:slideUp .5s cubic-bezier(.16,1,.3,1) both;}
+    .d1{animation-delay:.05s;}.d2{animation-delay:.1s;}.d3{animation-delay:.18s;}.d4{animation-delay:.26s;}.d5{animation-delay:.34s;}
+
+    /* SPLASH */
+    .splash{position:fixed;inset:0;background:linear-gradient(135deg,#fef3c7,#f59e0b,#d97706);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s ease;}
+    .splash.hidden{opacity:0;pointer-events:none;}
+    .splash-paw{font-size:80px;animation:splashPaw .7s cubic-bezier(.16,1,.3,1) both;}
+    .splash-text{font-size:32px;font-weight:900;color:#fff;letter-spacing:-1px;margin-top:16px;animation:fadeIn .5s .4s both;}
+    .splash-sub{font-size:15px;color:rgba(255,255,255,.8);margin-top:6px;animation:fadeIn .5s .6s both;}
+    .splash-loader{width:40px;height:3px;background:rgba(255,255,255,.3);border-radius:3px;margin-top:32px;overflow:hidden;animation:fadeIn .5s .7s both;}
+    .splash-loader-bar{height:100%;background:#fff;border-radius:3px;animation:shimmer 1.2s .8s ease forwards;background-size:400px 100%;width:0%;animation:grow 1.5s .8s ease forwards;}
+    @keyframes grow{to{width:100%;}}
+
+    /* APP SHELL */
+    .app{display:flex;flex-direction:column;height:100vh;max-width:430px;margin:0 auto;background:#f8f4ee;position:relative;overflow:hidden;}
+    .app-content{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:80px;-webkit-overflow-scrolling:touch;}
+
+    /* BOTTOM NAV */
+    .bottom-nav{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #f0e8d6;display:flex;padding:8px 0;padding-bottom:calc(8px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px rgba(0,0,0,.06);z-index:100;}
+    .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;cursor:pointer;padding:4px 2px;font-family:inherit;transition:transform .15s;}
+    .nav-item:active{transform:scale(.92);}
+    .nav-icon{font-size:22px;transition:transform .2s;}
+    .nav-label{font-size:10px;font-weight:600;color:#a8a29e;transition:color .2s;}
+    .nav-item.active .nav-label{color:#f59e0b;}
+    .nav-item.active .nav-icon{transform:scale(1.15);}
+    .nav-dot{width:5px;height:5px;border-radius:50%;background:#f59e0b;position:absolute;top:-1px;}
+
+    /* HEADER */
+    .top-header{background:#fff;padding:16px 20px 12px;padding-top:calc(16px + env(safe-area-inset-top));border-bottom:1px solid #f0e8d6;position:sticky;top:0;z-index:50;}
+
+    /* BUTTONS */
+    .btn{border:none;border-radius:12px;font-family:inherit;cursor:pointer;font-weight:700;transition:all .15s;}
+    .btn-primary{background:#f59e0b;color:#fff;padding:14px 24px;font-size:15px;}
+    .btn-primary:hover{background:#d97706;transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,158,11,.35);}
+    .btn-primary:active{transform:translateY(0);}
+    .btn-secondary{background:#fff;color:#1c1917;border:2px solid #e7dfc8;padding:12px 22px;font-size:14px;}
+    .btn-secondary:hover{border-color:#f59e0b;color:#92400e;}
+    .btn-sm{background:#f59e0b;color:#fff;padding:9px 16px;font-size:13px;border:none;border-radius:9px;font-family:inherit;cursor:pointer;font-weight:700;transition:all .15s;}
+    .btn-sm:hover{background:#d97706;}
+    .btn-ghost-sm{background:transparent;border:1.5px solid #e7dfc8;color:#78350f;padding:7px 14px;font-size:12.5px;border-radius:8px;font-family:inherit;cursor:pointer;font-weight:600;transition:all .15s;}
+    .btn-ghost-sm:hover{border-color:#f59e0b;background:#fffbeb;}
+    .btn-danger{background:#fee2e2;color:#991b1b;padding:9px 16px;font-size:13px;border:none;border-radius:9px;font-family:inherit;cursor:pointer;font-weight:700;transition:all .15s;}
+    .btn-danger:hover{background:#fecaca;}
+
+    /* CARDS */
+    .card{background:#fff;border-radius:18px;border:1px solid #f0e8d6;box-shadow:0 2px 16px rgba(0,0,0,.05);}
+    .card-section{background:#fff;border-radius:18px;border:1px solid #f0e8d6;margin:0 16px 14px;overflow:hidden;}
+
+    /* INPUT */
+    .input{width:100%;border:2px solid #e7dfc8;border-radius:12px;padding:12px 16px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;background:#fff;color:#1c1917;}
+    .input:focus{border-color:#f59e0b;}
+    .input-sm{border:1.5px solid #e7dfc8;border-radius:9px;padding:9px 13px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:#1c1917;transition:border-color .15s;}
+    .input-sm:focus{border-color:#f59e0b;}
+
+    /* CHAT */
+    .chat-messages{padding:16px;display:flex;flex-direction:column;gap:12px;}
+    .bubble-user{background:#f59e0b;color:#fff;border-radius:18px 18px 4px 18px;padding:12px 16px;max-width:78%;align-self:flex-end;font-size:14px;line-height:1.5;}
+    .bubble-ai{background:#fff;color:#1c1917;border-radius:18px 18px 18px 4px;padding:13px 16px;max-width:84%;border:1px solid #f0e8d6;line-height:1.65;font-size:14px;}
+    .chat-input-bar{background:#fff;border-top:1px solid #f0e8d6;padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));display:flex;gap:9px;align-items:flex-end;position:sticky;bottom:0;}
+    .chat-textarea{flex:1;border:2px solid #e7dfc8;border-radius:22px;padding:10px 16px;font-size:14px;font-family:inherit;outline:none;background:#fffbeb;color:#1c1917;resize:none;max-height:100px;line-height:1.5;}
+    .chat-textarea:focus{border-color:#f59e0b;}
+    .send-btn{width:42px;height:42px;border-radius:50%;background:#f59e0b;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+    .send-btn:hover{background:#d97706;transform:scale(1.05);}
+    .send-btn:disabled{background:#e7dfc8;cursor:not-allowed;transform:none;}
+    .typing-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#a8a29e;animation:bounce 1.3s infinite;margin:0 2px;}
+    .typing-dot:nth-child(2){animation-delay:.18s;}
+    .typing-dot:nth-child(3){animation-delay:.36s;}
+
+    /* CHIPS */
+    .chip{background:#fff;border:1.5px solid #f0e8d6;border-radius:20px;padding:7px 13px;font-size:12.5px;color:#78350f;cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:500;}
+    .chip:hover,.chip:active{background:#fef3c7;border-color:#f59e0b;}
+
+    /* ONBOARDING */
+    .onboarding{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;background:#fffbeb;}
+    .step-dot{height:8px;border-radius:50%;background:#e7dfc8;transition:all .3s;}
+    .step-dot.active{background:#f59e0b;width:24px;border-radius:4px;}
+    .step-dot.done{background:#f59e0b;width:8px;}
+    .breed-opt{padding:10px 14px;border-radius:10px;border:2px solid #f0e8d6;cursor:pointer;font-size:13.5px;transition:all .15s;background:#fff;}
+    .breed-opt:hover,.breed-opt.sel{border-color:#f59e0b;background:#fef3c7;color:#78350f;font-weight:600;}
+    .trait-tag{background:#fef3c7;color:#78350f;border-radius:20px;padding:7px 15px;font-size:13px;font-weight:500;border:2px solid transparent;cursor:pointer;transition:all .15s;}
+    .trait-tag.sel{background:#f59e0b;color:#fff;border-color:#d97706;}
+
+    /* HEALTH SCORE RING */
+    .score-ring{transform:rotate(-90deg);}
+    .score-track{fill:none;stroke:#f0e8d6;stroke-width:8;}
+    .score-fill{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1.2s cubic-bezier(.16,1,.3,1);}
+
+    /* VACCINE STATUS BADGES */
+    .badge-ok{background:#dcfce7;color:#166534;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;}
+    .badge-due{background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;}
+    .badge-overdue{background:#fee2e2;color:#991b1b;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;}
+    .badge-unknown{background:#f3f4f6;color:#6b7280;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;}
+    .badge-blue{background:#e0f2fe;color:#0369a1;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;}
+
+    /* PRODUCT CARD */
+    .product-card{background:#fff;border-radius:16px;border:1px solid #f0e8d6;padding:16px;transition:all .15s;}
+    .product-card:hover{border-color:#f59e0b;box-shadow:0 4px 20px rgba(245,158,11,.1);}
+
+    /* HOME GRADIENT CARD */
+    .gradient-card{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);border-radius:20px;padding:20px;color:#fff;margin:0 16px 14px;}
+    .stat-mini{background:rgba(255,255,255,.18);border-radius:10px;padding:10px 14px;backdrop-filter:blur(4px);}
+
+    /* QUICK ACTION */
+    .quick-action{background:#fff;border-radius:16px;border:1px solid #f0e8d6;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:all .15s;text-align:center;}
+    .quick-action:hover{border-color:#f59e0b;background:#fffbeb;transform:translateY(-2px);box-shadow:0 4px 16px rgba(245,158,11,.15);}
+    .quick-action:active{transform:translateY(0);}
+
+    /* TIP CARD */
+    .tip-card{background:linear-gradient(135deg,#1c1917,#292524);border-radius:18px;padding:20px;margin:0 16px 14px;color:#fff;}
+
+    /* SECTION LABEL */
+    .section-label{font-size:12px;font-weight:700;color:#a8a29e;text-transform:uppercase;letter-spacing:.6px;padding:0 16px;margin-bottom:10px;margin-top:6px;}
+
+    /* LANDING */
+    .hero-bg{background:linear-gradient(160deg,#fffbeb 0%,#fef3c7 40%,#fde68a 100%);}
+    .pricing-card{background:#fff;border-radius:22px;padding:28px;border:2px solid #f0e8d6;}
+    .pricing-card.featured{border-color:#f59e0b;background:#fffbeb;}
+    .testimonial-card{background:#fff;border-radius:16px;padding:22px;border:1px solid #f0e8d6;}
+
+    /* PROGRESS BAR */
+    .progress-bar-track{background:#f0e8d6;border-radius:99px;height:6px;overflow:hidden;}
+    .progress-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#f59e0b,#d97706);transition:width 1s cubic-bezier(.16,1,.3,1);}
+
+    /* EMERGENCY */
+    .emergency-btn{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:16px;padding:16px 20px;width:100%;font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .15s;box-shadow:0 4px 20px rgba(239,68,68,.3);}
+    .emergency-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(239,68,68,.4);}
+    .emergency-btn:active{transform:translateY(0);}
+
+    @media(max-width:600px){.hide-mobile{display:none;}}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect,useCallback,useMemo}=React;
+
+// ──────────────────────────────────────────────
+// DATA & ENGINES
+// ──────────────────────────────────────────────
+const BREEDS=["Labrador Retriever","Golden Retriever","French Bulldog","German Shepherd","Poodle","Bulldog","Beagle","Rottweiler","Yorkshire Terrier","Dachshund","Boxer","Siberian Husky","Shih Tzu","Great Dane","Doberman","Chihuahua","Maltese","Corgi","Border Collie","Australian Shepherd","Morkie","Chihuahua mix","Rat Terrier mix","Terrier mix","Rescue mix","Pit Bull mix","Goldendoodle","Labradoodle","Pomeranian","Cavapoo"];
+const TRAITS=["Energetic","Chill","Anxious","Playful","Stubborn","Protective","Shy","Social butterfly","Food motivated","Cuddly","Independent","Velcro dog"];
+const DEFAULT_VACCINES=[
+  {id:1,name:"Rabies",required:true,frequency:"1–3 years",lastGiven:"",nextDue:"",notes:""},
+  {id:2,name:"DHPP (Distemper, Parvo, Adenovirus)",required:true,frequency:"1–3 years",lastGiven:"",nextDue:"",notes:""},
+  {id:3,name:"Bordetella (Kennel Cough)",required:false,frequency:"6–12 months",lastGiven:"",nextDue:"",notes:""},
+  {id:4,name:"Leptospirosis",required:false,frequency:"Annual",lastGiven:"",nextDue:"",notes:""},
+  {id:5,name:"Lyme Disease",required:false,frequency:"Annual",lastGiven:"",nextDue:"",notes:""},
+  {id:6,name:"Canine Influenza",required:false,frequency:"Annual",lastGiven:"",nextDue:"",notes:""},
+];
+
+function humanYears(dogAge,weight){
+  const w=parseInt(weight)||20,a=parseInt(dogAge)||1;
+  if(a<=0)return 0;
+  if(a===1)return w<20?15:w<50?15:12;
+  if(a===2)return w<20?24:w<50?24:22;
+  const perYear=w<20?4:w<50?5:7;
+  return(w<20?24:24)+(a-2)*perYear;
+}
+
+function calcHealthScore(vaccines,vetInfo,meds,logs){
+  let score=50;
+  const withDates=vaccines.filter(v=>v.nextDue);
+  if(withDates.length>=2)score+=10;
+  const overdue=vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())<0).length;
+  if(overdue===0&&withDates.length>0)score+=10;
+  if(vetInfo.name)score+=8;
+  if(vetInfo.nextAppt)score+=8;
+  if(meds.length>0)score+=5;
+  if(logs.length>=3)score+=9;
+  return Math.min(score,100);
+}
+
+function scoreColor(s){return s>=80?"#10b981":s>=60?"#f59e0b":"#ef4444";}
+function scoreLabel(s){return s>=80?"Excellent":s>=60?"Good":"Needs Attention";}
+
+function vaccineStatus(nextDue){
+  if(!nextDue)return{label:"Not recorded",cls:"badge-unknown"};
+  const diff=(new Date(nextDue)-new Date())/(86400000);
+  if(diff<0)return{label:"Overdue",cls:"badge-overdue"};
+  if(diff<30)return{label:"Due soon",cls:"badge-due"};
+  return{label:"Up to date",cls:"badge-ok"};
+}
+
+function getDailyTip(dog){
+  const tips=[
+    {emoji:"🦷",title:"Dental Health",text:`Brushing ${dog.name}'s teeth 3x per week can add 3–5 years to their life. The enzymatic toothpaste makes it easier — they often love the flavor.`},
+    {emoji:"🧠",title:"Mental Stimulation",text:`A 10-minute training session can tire ${dog.name} out more than a 30-minute walk. Their brain needs exercise too.`},
+    {emoji:"👃",title:"The Power of Sniff Walks",text:`Let ${dog.name} sniff on walks instead of keeping a brisk pace. For dogs, sniffing IS the walk — it's their way of reading the news.`},
+    {emoji:"🥣",title:"Hydration Check",text:`Most dogs need about 1 oz of water per pound of body weight daily. ${dog.weight?`For ${dog.name} at ${dog.weight} lbs, that's around ${Math.round(dog.weight)} oz.`:"Keep fresh water available at all times."}`},
+    {emoji:"😴",title:"Rest Matters",text:`Dogs sleep 12–14 hours a day. If ${dog.name} seems more tired than usual, note it in the health log — changes in rest patterns are often the first sign of something worth checking.`},
+    {emoji:"❤️",title:"The 3-Second Rule",text:`When ${dog.name} greets you, get down to their level and let them come to you. That simple act builds trust more than most training exercises.`},
+    {emoji:"🌡️",title:"Know Their Normal",text:`Take ${dog.name}'s temperature when they're healthy (101–102.5°F is normal) so you have a baseline. A dog with a 103°F+ temp needs a vet call.`},
+    {emoji:"🐾",title:"Paw Check",text:`Inspect ${dog.name}'s paws weekly. Look between the toes for cuts, swelling, or signs of allergies like redness. Many dogs lick their paws when something's off.`},
+  ];
+  const idx=new Date().getDate()%tips.length;
+  return tips[idx];
+}
+
+function getBreedFact(breed){
+  const facts={
+    "Chihuahua":["Chihuahuas have the largest brain-to-body ratio of any dog breed.","Despite their size, Chihuahuas are one of the most long-lived breeds — often reaching 15–20 years."],
+    "Chihuahua mix":["Chihuahua mixes often inherit the best of both worlds — typically intelligent, alert, and deeply loyal.","Many Chihuahua mixes are 'velcro dogs' — they bond incredibly closely with one person."],
+    "Morkie":["Morkies — a Maltese-Yorkshire Terrier mix — are hypoallergenic and low-shedding, great for allergy sufferers.","Despite their small size, Morkies have big personalities and surprising confidence."],
+    "Golden Retriever":["Golden Retrievers were bred in Scotland in the 1800s specifically for retrieving waterfowl.","They're consistently ranked as one of the top 3 most popular dog breeds in the US."],
+    "Labrador Retriever":["Labs have been the #1 most popular breed in the US for over 30 consecutive years.","Their otter-like tail is a rudder — it helps them steer while swimming."],
+    "default":["Dogs can recognize their owner's scent from up to 2 miles away.","Dogs' nose prints are as unique as human fingerprints — no two are the same.","The average dog can learn over 165 words and signals."],
+  };
+  const f=facts[breed]||facts["default"];
+  return f[new Date().getDate()%f.length];
+}
+
+// AI Response Engine
+function getAI(msg,dog){
+  const m=msg.toLowerCase(),n=dog?.name||"your dog",b=dog?.breed||"dog",a=parseInt(dog?.age)||3,t=dog?.traits||[],w=dog?.weight;
+  const anxious=t.includes("Anxious"),energetic=t.includes("Energetic");
+  if(m.includes("bark")||m.includes("whine")||m.includes("quiet")||m.includes("loud"))
+    return `${n} sounds like a communicator! ${b}s can bark for a few reasons — alerting, boredom, anxiety, or just wanting attention.\n\nA useful trick: note *when* the barking happens for 3 days. Morning? When you leave? When people pass? The pattern tells you everything.\n\n${a<2?`Since ${n} is still young, they're learning the rules — consistency is huge right now.`:`At ${a}, ${n} likely has established triggers.`}\n\nWhat does the barking sound like — sharp and alert, or more anxious?`;
+  if(m.includes("food")||m.includes("eat")||m.includes("diet")||m.includes("feed")||m.includes("hungry")||m.includes("treat")||m.includes("nutrition"))
+    return `Feeding ${n} right is one of the highest-impact choices for their health.\n\nFor a ${b}, look for food where the first ingredient is a named protein — chicken, salmon, beef. Not "meat meal" or corn.\n\n${a<1?`Since ${n} is a puppy, puppy formula is essential — the protein and fat ratios matter a lot.`:a>7?`At ${a}, a senior formula with joint support could be a great upgrade.`:`At ${a}, quality adult formula works great.`}${w?`\n\nFor ${w} lbs, roughly ${Math.round(w*0.025*10)/10} cups of dry food per day is a starting point.`:""}\n\nAny digestive issues, or eating well overall?`;
+  if(m.includes("exercise")||m.includes("walk")||m.includes("run")||m.includes("play")||m.includes("energy")||m.includes("hyper")||m.includes("bored"))
+    return `${b}s${energetic?` — especially ${n} —`:""} thrive on consistent daily movement. For most dogs ${n}'s size, 45–60 minutes split into a couple sessions works well.\n\nSecret weapon: mental exercise is just as tiring as physical. A sniff walk where ${n} gets to smell everything, or a puzzle feeder at mealtime, can wear them out faster than a sprint.\n\nWhat does ${n}'s typical day look like right now?`;
+  if(m.includes("anxi")||m.includes("scared")||m.includes("fear")||m.includes("nervous")||m.includes("shak")||m.includes("stress")||m.includes("separation"))
+    return `${anxious?`Since you flagged ${n} as anxious, this makes sense. `:``}Anxiety is real for dogs and worth addressing — it affects their quality of life a lot.\n\nStep one: identify the trigger. Sounds (thunder, fireworks)? Situations (being alone, car rides)? Strangers? Each has a different approach.\n\nMost anxiety responds well to gradual desensitization. Calming supplements (L-theanine, Adaptil) help some dogs. And if it's significant, a vet conversation about meds isn't a last resort — it's a tool.\n\nWhat are you noticing with ${n} specifically?`;
+  if(m.includes("sleep")||m.includes("tired")||m.includes("lethargic")||m.includes("lazy"))
+    return `Dogs sleep 12–14 hours a day on average — a lot of napping is totally normal.\n\nWhat matters is *change*. If ${n} used to be bouncy and has gotten notably more tired, or seems stiff getting up, that's worth a vet visit.\n\nIs this ${n}'s normal baseline, or something that's shifted recently?`;
+  if(m.includes("train")||m.includes("command")||m.includes("behav")||m.includes("listen")||m.includes("sit")||m.includes("stay"))
+    return `Training is one of the best investments in your relationship with ${n}. Dogs love having a job and understanding expectations.\n\nThe five that change daily life most: *sit, stay, come, leave it,* and *loose-leash walking*.\n\nFor ${b}s, positive reinforcement consistently beats anything correction-based. Short sessions (5–10 mins), end on a win, make it feel like a game.\n\nIs there a specific behavior you're working on?`;
+  if(m.includes("sick")||m.includes("vet")||m.includes("hurt")||m.includes("pain")||m.includes("vomit")||m.includes("poop")||m.includes("limp")||m.includes("blood"))
+    return `Your instincts about ${n} are worth trusting.\n\n⚠️ For anything urgent — repeated vomiting, bloody stool, limping, not eating 24+ hrs, labored breathing — please call your vet or use the Emergency Vet button in the Health tab now.\n\nFor non-urgent concerns: note when it started, how often, and if anything changed recently. That makes the vet visit way more productive.\n\nWhat are you seeing with ${n}?`;
+  if(m.includes("groom")||m.includes("bath")||m.includes("shed")||m.includes("nail")||m.includes("brush")||m.includes("coat")||m.includes("smell"))
+    return `Grooming is both a health thing and a bonding thing. Dogs comfortable with handling are dramatically easier at the vet.\n\nFor a ${b}: nails every 3–4 weeks (clicking floors = time for a trim). Ears weekly for moisture. Teeth are the most overlooked — dental chews daily make a real difference over time.\n\nHow does ${n} do with being handled — feet, ears, brushed?`;
+  if(m.includes("shop")||m.includes("product")||m.includes("buy")||m.includes("recommend")||m.includes("what should i get"))
+    return `Head to the **Shop tab** for picks I've put together specifically for ${n}! 🛍️\n\nI've curated food, treats, health supplements, and gear based on ${n}'s breed, age, and personality. Everything links straight to Chewy.`;
+  const f=[`Great question about ${n}. Every ${b} is a little different — I want to give you something actually useful, not generic advice.\n\nCan you tell me more? When did this start, how often, and has anything changed in ${n}'s routine lately?`,
+    `I want to give ${n}-specific help here. A bit more context would help — what exactly are you noticing, and is this new or ongoing?`,
+    `You know ${n} better than any article. Let me work with you on this.\n\nWhat prompted the question — something specific you've been noticing?`];
+  return f[Math.floor(Math.random()*f.length)];
+}
+
+// Product Recommendations
+function getProducts(dog){
+  const w=parseInt(dog?.weight)||20,a=parseInt(dog?.age)||3,t=dog?.traits||[],b=dog?.breed||"",n=dog?.name||"your dog";
+  const sm=w<20,lg=w>55,senior=a>=7,puppy=a<1,anxious=t.includes("Anxious"),energetic=t.includes("Energetic"),stubborn=t.includes("Stubborn"),foodmot=t.includes("Food motivated");
+  return[
+    {cat:"Food",emoji:"🍖",name:puppy?"Royal Canin Puppy":senior?"Hill's Science Diet Senior 7+":sm?"Hill's Science Diet Small & Mini":"Purina Pro Plan Complete Essentials",brand:puppy?"Royal Canin":senior?"Hill's Science Diet":sm?"Hill's Science Diet":"Purina Pro Plan",stars:"4.8",rev:"12.4k",why:puppy?`Puppy-specific formula with perfect development ratios for ${n}.`:senior?`Senior formula with joint support — ideal for ${n} at ${a}.`:sm?`Small-breed kibble sized for ${n}'s jaw. Real chicken as first ingredient.`:`High-protein, vet-trusted formula. Consistently top-rated.`,ai:true,q:puppy?"royal+canin+puppy":senior?"hills+science+diet+senior+dog":sm?"hills+science+diet+small+mini":"purina+pro+plan+adult+dog"},
+    {cat:"Treats",emoji:"🦴",name:foodmot||stubborn?"Zuke's Mini Naturals Training Treats":"Greenies Original Dental Treats",brand:foodmot||stubborn?"Zuke's":"Greenies",stars:"4.9",rev:"28k",why:foodmot||stubborn?`High-value training treats at ${n}'s level. Low calorie so you can use plenty.`:`Clinically proven to reduce tartar. ${n}'s dental health will thank you.`,ai:foodmot||stubborn,q:foodmot||stubborn?"zukes+mini+naturals+training+treats":"greenies+dental+treats+dog"},
+    ...(anxious?[{cat:"Health",emoji:"💊",name:"Zesty Paws Calming Bites",brand:"Zesty Paws",stars:"4.7",rev:"9.2k",why:`Since ${n} tends toward anxiety, these L-Theanine + chamomile chews take the edge off without sedation. Great for storms, travel, and strangers.`,ai:true,q:"zesty+paws+calming+bites"},{cat:"Health",emoji:"🎀",name:"Adaptil Calm Pheromone Collar",brand:"Adaptil",stars:"4.5",rev:"6.8k",why:`Vet-recommended collar that mimics natural calming pheromones. Works 24/7 for 30 days. Perfect for ${n}'s everyday anxiety.`,ai:false,q:"adaptil+calm+collar+dog"}]:[]),
+    {cat:"Toys",emoji:"🎾",name:energetic?"KONG Classic Stuffable Dog Toy":"Outward Hound Hide-A-Squirrel Puzzle",brand:energetic?"KONG":"Outward Hound",stars:"4.9",rev:energetic?"45k":"8.4k",why:energetic?`Fill with peanut butter or kibble — ${n} will work on it for 20–30 mins. Best energy outlet there is.`:`Gentle puzzle toy for mental stimulation. The squeaky squirrels are a bonus.`,ai:energetic,q:energetic?"kong+classic+dog+toy":"outward+hound+hide+squirrel"},
+    ...(energetic?[{cat:"Toys",emoji:"🧩",name:"Nina Ottosson Dog Brick Puzzle",brand:"Nina Ottosson",stars:"4.7",rev:"7.4k",why:`Makes mealtime a brain game. Mental exercise tires ${n} out faster than a run.`,ai:false,q:"nina+ottosson+dog+brick+puzzle"}]:[]),
+    {cat:"Health",emoji:"💉",name:senior||lg?"Cosequin Max Strength Joint Supplement":"Zesty Paws Multivitamin Bites",brand:senior||lg?"Cosequin":"Zesty Paws",stars:"4.8",rev:"22k",why:senior||lg?`Glucosamine + chondroitin — vet's #1 joint supplement. Critical for ${b}s.`:`Daily multivitamin for immune health, digestion, skin and coat. Great preventive care.`,ai:senior||lg,q:senior||lg?"cosequin+joint+supplement+dog":"zesty+paws+multivitamin+dog"},
+    {cat:"Gear",emoji:"🎽",name:sm?"Puppia Soft Dog Harness":"Ruffwear Front Range Harness",brand:sm?"Puppia":"Ruffwear",stars:"4.8",rev:sm?"31k":"18k",why:sm?`Lightweight, no-choke design perfect for ${n}'s size. Vest-style distributes pressure evenly.`:`The gold standard of harnesses. Durable, escape-proof, built for active dogs.`,ai:false,q:sm?"puppia+soft+dog+harness":"ruffwear+front+range+harness"},
+    {cat:"Health",emoji:"🪥",name:"Arm & Hammer Clinical Dental Kit",brand:"Arm & Hammer",stars:"4.6",rev:"5.3k",why:`Dental disease is the #1 issue vets see in dogs. This kit makes starting a brushing routine easy — the toothpaste is safe to swallow.`,ai:false,q:"arm+hammer+dog+dental+kit"},
+    {cat:"Food",emoji:"🥩",name:"Ollie Fresh Dog Food (Custom)",brand:"Ollie",stars:"4.8",rev:"8.9k",why:`Human-grade fresh food portioned for ${n}'s weight and age. Better coat, energy, and digestion. Premium — but worth it.`,ai:false,q:"ollie+fresh+dog+food"},
+  ];
+}
+
+// ──────────────────────────────────────────────
+// SPLASH SCREEN
+// ──────────────────────────────────────────────
+function Splash({done}){
+  useEffect(()=>{const t=setTimeout(done,2200);return()=>clearTimeout(t);},[done]);
+  return(
+    <div className="splash">
+      <div className="splash-paw">🐾</div>
+      <div className="splash-text">Dog Boy</div>
+      <div className="splash-sub">Your AI Dog Companion</div>
+      <div className="splash-loader"><div className="splash-loader-bar"/></div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// LANDING PAGE
+// ──────────────────────────────────────────────
+function Landing({onStart}){
+  return(
+    <div style={{minHeight:"100vh",background:"#fffbeb",overflowY:"auto"}}>
+      {/* NAV */}
+      <nav style={{background:"#fff",borderBottom:"1px solid #f0e8d6",padding:"0 24px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:22}}>🐾</span><span style={{fontSize:18,fontWeight:900,letterSpacing:"-0.5px"}}>Dog Boy</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:20}}>
+          <span className="hide-mobile" style={{fontSize:14,color:"#57534e",fontWeight:500,cursor:"pointer"}}>Features</span>
+          <span className="hide-mobile" style={{fontSize:14,color:"#57534e",fontWeight:500,cursor:"pointer"}}>Pricing</span>
+          <button className="btn btn-primary" style={{padding:"9px 20px",fontSize:14}} onClick={onStart}>Get Started Free</button>
+        </div>
+      </nav>
+
+      {/* HERO */}
+      <div className="hero-bg" style={{padding:"80px 24px 100px",textAlign:"center"}}>
+        <div className="fade-up" style={{maxWidth:900,margin:"0 auto"}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:7,background:"#fff",border:"1.5px solid #f0e8d6",borderRadius:24,padding:"6px 16px",fontSize:13,fontWeight:600,color:"#92400e",marginBottom:28}}>
+            <span>🐶</span> Built by Dog Boy, for dog parents
+          </div>
+          <h1 style={{fontSize:"clamp(38px,7vw,72px)",fontWeight:900,lineHeight:1.05,letterSpacing:"-2.5px",color:"#1c1917",marginBottom:22}}>
+            The all-in-one app<br/><span style={{color:"#f59e0b"}}>your dog deserves.</span>
+          </h1>
+          <p style={{fontSize:"clamp(16px,2.5vw,20px)",color:"#57534e",maxWidth:520,margin:"0 auto 42px",lineHeight:1.65}}>
+            AI that knows your dog. Health tracking. Smart product picks. Vet records, vaccines, reminders. All in one place, finally.
+          </p>
+          <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:20}}>
+            <button className="btn btn-primary" style={{fontSize:17,padding:"15px 32px"}} onClick={onStart}>Create Your Dog's Profile →</button>
+            <button className="btn btn-secondary" onClick={onStart}>See How It Works</button>
+          </div>
+          <p style={{fontSize:12.5,color:"#a8a29e"}}>Free to start · No credit card required · Works on iOS & Android</p>
+        </div>
+
+        {/* MOCK PREVIEW */}
+        <div className="fade-up d3" style={{maxWidth:340,margin:"60px auto 0",background:"#fff",borderRadius:28,border:"1px solid #f0e8d6",boxShadow:"0 24px 80px rgba(0,0,0,.12)",overflow:"hidden",textAlign:"left"}}>
+          <div style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",padding:"16px 18px",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🐕</div>
+            <div><div style={{color:"#fff",fontWeight:800,fontSize:15}}>Biscuit's Hub</div><div style={{color:"rgba(255,255,255,.8)",fontSize:12}}>Chihuahua Mix · 4 yrs · 9 lbs</div></div>
+            <div style={{marginLeft:"auto",background:"rgba(255,255,255,.2)",borderRadius:10,padding:"4px 10px",fontSize:12,fontWeight:700,color:"#fff"}}>82 Health Score</div>
+          </div>
+          <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[["💬","Ask AI"],["🏥","Health"],["🛍️","Shop"],["📋","Log"]].map(([e,l])=>(
+                <div key={l} style={{background:"#fffbeb",borderRadius:12,padding:"10px",textAlign:"center",border:"1px solid #f0e8d6"}}><div style={{fontSize:20}}>{e}</div><div style={{fontSize:11.5,fontWeight:600,color:"#78350f",marginTop:3}}>{l}</div></div>
+              ))}
+            </div>
+            <div style={{background:"#fef3c7",borderRadius:10,padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:11,fontWeight:700,color:"#92400e"}}>⚠️ DUE IN 14 DAYS</div><div style={{fontSize:13,fontWeight:600,marginTop:1}}>Rabies Booster</div></div>
+              <span style={{fontSize:20}}>📅</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FEATURES */}
+      <div style={{background:"#fff",borderTop:"1px solid #f0e8d6",padding:"80px 24px"}}>
+        <div style={{maxWidth:1100,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:52}}>
+            <h2 style={{fontSize:"clamp(24px,4vw,42px)",fontWeight:900,letterSpacing:"-1.5px",marginBottom:12}}>Everything in one place</h2>
+            <p style={{fontSize:16,color:"#57534e",maxWidth:480,margin:"0 auto"}}>Built around your dog, not a generic pet owner.</p>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:20}}>
+            {[
+              {icon:"🤖",bg:"#fef3c7",t:"AI That Knows Your Dog",d:"Ask about behavior, health, food, training. Get answers tailored to your dog's breed, age, and personality — not copy-pasted advice."},
+              {icon:"🏥",bg:"#dcfce7",t:"Complete Health Hub",d:"Vaccines, vet appointments, medications, health records. Set reminders so nothing slips through the cracks."},
+              {icon:"🛍️",bg:"#fef9c3",t:"Smart Product Picks",d:"AI-curated recommendations based on your dog's profile. Every pick links to Chewy for instant ordering."},
+              {icon:"📊",bg:"#ede9fe",t:"Health Score",d:"A real-time health score for your dog based on how up-to-date their vaccines, vet visits, and meds are."},
+              {icon:"🔗",bg:"#e0f2fe",t:"Vet Integration (Coming Soon)",d:"Direct sync with vet systems — Covetrus, IDEXX, ezyVet. Your records update automatically."},
+              {icon:"🐾",bg:"#fce7f3",t:"Built by Dog Boy",d:"A real person who finds the dog at every party. Not a pet corporation. That energy is in every feature we ship."},
+            ].map(f=>(
+              <div key={f.t} className="card" style={{padding:"26px"}}>
+                <div style={{width:50,height:50,borderRadius:13,background:f.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,marginBottom:14}}>{f.icon}</div>
+                <h3 style={{fontSize:15.5,fontWeight:700,marginBottom:8,letterSpacing:"-0.2px"}}>{f.t}</h3>
+                <p style={{fontSize:13.5,color:"#57534e",lineHeight:1.65}}>{f.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* TESTIMONIALS */}
+      <div style={{padding:"80px 24px"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <h2 style={{fontSize:"clamp(22px,3.5vw,36px)",fontWeight:900,letterSpacing:"-1px",marginBottom:36,textAlign:"center"}}>Dog parents love it</h2>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:16}}>
+            {[
+              {n:"Sarah M.",d:"Bernese mix",t:"Finally one app that does everything. The vaccine tracker alone has saved me twice. And the AI actually *knows* my dog."},
+              {n:"Marcus T.",d:"Rescue pit bull",t:"The Shop recommendations changed how I buy products for Koda. The AI picked a calming supplement based on his profile and it actually worked."},
+              {n:"Priya K.",d:"Two corgis",t:"I had vet records in three places, treats on Amazon, a training app, and Google for questions. Dog Boy replaced all of it."},
+            ].map(t=>(
+              <div key={t.n} className="testimonial-card">
+                <div style={{display:"flex",gap:2,marginBottom:10}}>{[...Array(5)].map((_,i)=><span key={i} style={{color:"#f59e0b",fontSize:14}}>★</span>)}</div>
+                <p style={{fontSize:14,color:"#44403c",lineHeight:1.7,marginBottom:14,fontStyle:"italic"}}>"{t.t}"</p>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🐕</div>
+                  <div><div style={{fontWeight:700,fontSize:13}}>{t.n}</div><div style={{fontSize:11,color:"#a8a29e"}}>{t.d}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* PRICING */}
+      <div style={{background:"#fff",borderTop:"1px solid #f0e8d6",padding:"80px 24px"}}>
+        <div style={{maxWidth:820,margin:"0 auto",textAlign:"center"}}>
+          <h2 style={{fontSize:"clamp(24px,4vw,42px)",fontWeight:900,letterSpacing:"-1.5px",marginBottom:10}}>Simple, honest pricing</h2>
+          <p style={{fontSize:15,color:"#57534e",marginBottom:48}}>Less than one cup of coffee a month.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:20}}>
+            <div className="pricing-card">
+              <div style={{fontSize:13,fontWeight:600,color:"#78350f",marginBottom:8}}>FREE</div>
+              <div style={{fontSize:44,fontWeight:900,letterSpacing:"-2px",marginBottom:4}}>$0</div>
+              <div style={{fontSize:13,color:"#a8a29e",marginBottom:24}}>forever</div>
+              {["1 dog profile","5 AI questions/day","Vaccine tracker","Basic health log","Product recommendations"].map(f=>(
+                <div key={f} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,textAlign:"left"}}><span style={{color:"#f59e0b",fontWeight:700}}>✓</span><span style={{fontSize:13.5,color:"#44403c"}}>{f}</span></div>
+              ))}
+              <button className="btn btn-secondary" style={{width:"100%",marginTop:20}} onClick={onStart}>Get Started Free</button>
+            </div>
+            <div className="pricing-card featured">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                <span style={{fontSize:13,fontWeight:600,color:"#78350f"}}>PREMIUM</span>
+                <span style={{background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20}}>MOST POPULAR</span>
+              </div>
+              <div style={{fontSize:44,fontWeight:900,letterSpacing:"-2px",marginBottom:4}}>$9.99</div>
+              <div style={{fontSize:13,color:"#a8a29e",marginBottom:24}}>per month · cancel anytime</div>
+              {["Everything in Free","Unlimited AI questions","Up to 3 dog profiles","Full health hub & records","Medication + vet tracking","Priority support","Early feature access"].map(f=>(
+                <div key={f} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,textAlign:"left"}}><span style={{color:"#f59e0b",fontWeight:700}}>✓</span><span style={{fontSize:13.5,color:"#44403c"}}>{f}</span></div>
+              ))}
+              <button className="btn btn-primary" style={{width:"100%",marginTop:20}} onClick={onStart}>Start Free Trial</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div style={{background:"#1c1917",padding:"80px 24px",textAlign:"center"}}>
+        <h2 style={{fontSize:"clamp(28px,5vw,52px)",fontWeight:900,color:"#fff",letterSpacing:"-2px",marginBottom:14}}>One app.<br/>Every dog thing.</h2>
+        <p style={{color:"#a8a29e",fontSize:16,maxWidth:480,margin:"0 auto 36px",lineHeight:1.6}}>AI answers, health records, vaccine reminders, smart product picks. All built around your dog.</p>
+        <button className="btn btn-primary" style={{fontSize:17,padding:"15px 36px"}} onClick={onStart}>Create Your Dog's Profile — Free →</button>
+      </div>
+      <div style={{background:"#1c1917",borderTop:"1px solid #292524",padding:"22px",textAlign:"center"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:7}}><span style={{fontSize:18}}>🐾</span><span style={{fontSize:15,fontWeight:800,color:"#fff"}}>Dog Boy</span></div>
+        <p style={{fontSize:11,color:"#57534e"}}>Made with love for dogs everywhere · © 2026 Dog Boy</p>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// ONBOARDING
+// ──────────────────────────────────────────────
+function Onboarding({onDone}){
+  const [step,setStep]=useState(1);
+  const [d,setD]=useState({name:"",breed:"",age:"",weight:"",sex:"male",traits:[]});
+  const [bs,setBs]=useState("");
+  const filtered=BREEDS.filter(b=>b.toLowerCase().includes(bs.toLowerCase()));
+  const next=()=>setStep(s=>s+1),back=()=>setStep(s=>s-1);
+  const toggleTrait=t=>setD(x=>({...x,traits:x.traits.includes(t)?x.traits.filter(v=>v!==t):[...x.traits,t]}));
+  const c=()=>{
+    if(step===1)return(
+      <div className="fade-up">
+        <div style={{fontSize:52,marginBottom:14,textAlign:"center"}}>🐕</div>
+        <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-1px",marginBottom:8,textAlign:"center"}}>What's your dog's name?</h2>
+        <p style={{fontSize:14,color:"#78350f",marginBottom:26,textAlign:"center"}}>Let's start with what matters most.</p>
+        <input className="input" autoFocus placeholder="Biscuit, Luna, Max..." value={d.name} onChange={e=>setD(x=>({...x,name:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&d.name&&next()} style={{fontSize:20,fontWeight:600,textAlign:"center",marginBottom:16}}/>
+        <button className="btn btn-primary" style={{width:"100%",padding:"14px"}} onClick={next} disabled={!d.name}>Continue →</button>
+      </div>
+    );
+    if(step===2)return(
+      <div className="fade-up">
+        <div style={{fontSize:52,marginBottom:14,textAlign:"center"}}>🔍</div>
+        <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-1px",marginBottom:6,textAlign:"center"}}>What breed is {d.name}?</h2>
+        <p style={{fontSize:14,color:"#78350f",marginBottom:20,textAlign:"center"}}>Breed-specific advice is way more useful.</p>
+        <input className="input" style={{marginBottom:10}} placeholder="Search or type breed..." value={bs} onChange={e=>{setBs(e.target.value);setD(x=>({...x,breed:e.target.value}));}}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,maxHeight:190,overflowY:"auto",marginBottom:16}}>
+          {filtered.map(b=><div key={b} className={`breed-opt ${d.breed===b?"sel":""}`} onClick={()=>{setD(x=>({...x,breed:b}));setBs(b);}}>{b}</div>)}
+        </div>
+        <div style={{display:"flex",gap:10}}><button className="btn btn-secondary" onClick={back} style={{flex:1}}>← Back</button><button className="btn btn-primary" onClick={next} disabled={!d.breed} style={{flex:2,padding:"14px"}}>Continue →</button></div>
+      </div>
+    );
+    if(step===3)return(
+      <div className="fade-up">
+        <div style={{fontSize:52,marginBottom:14,textAlign:"center"}}>📋</div>
+        <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-1px",marginBottom:6,textAlign:"center"}}>Tell us about {d.name}</h2>
+        <p style={{fontSize:14,color:"#78350f",marginBottom:22,textAlign:"center"}}>A few details make everything more accurate.</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+          <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:5}}>Age (years)</label><input className="input" type="number" min="0" max="20" placeholder="e.g. 4" value={d.age} onChange={e=>setD(x=>({...x,age:e.target.value}))}/></div>
+          <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:5}}>Weight (lbs)</label><input className="input" type="number" min="1" max="250" placeholder="e.g. 9" value={d.weight} onChange={e=>setD(x=>({...x,weight:e.target.value}))}/></div>
+        </div>
+        <label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:8}}>Sex</label>
+        <div style={{display:"flex",gap:10,marginBottom:20}}>
+          {["male","female"].map(s=><div key={s} className={`breed-opt ${d.sex===s?"sel":""}`} onClick={()=>setD(x=>({...x,sex:s}))} style={{flex:1,textAlign:"center"}}>{s==="male"?"♂ Male":"♀ Female"}</div>)}
+        </div>
+        <div style={{display:"flex",gap:10}}><button className="btn btn-secondary" onClick={back} style={{flex:1}}>← Back</button><button className="btn btn-primary" onClick={next} disabled={!d.age} style={{flex:2,padding:"14px"}}>Continue →</button></div>
+      </div>
+    );
+    if(step===4)return(
+      <div className="fade-up">
+        <div style={{fontSize:52,marginBottom:14,textAlign:"center"}}>✨</div>
+        <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-1px",marginBottom:6,textAlign:"center"}}>What's {d.name} like?</h2>
+        <p style={{fontSize:14,color:"#78350f",marginBottom:20,textAlign:"center"}}>Select all that apply.</p>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:26}}>
+          {TRAITS.map(t=><span key={t} className={`trait-tag ${d.traits.includes(t)?"sel":""}`} onClick={()=>toggleTrait(t)}>{t}</span>)}
+        </div>
+        <div style={{display:"flex",gap:10}}><button className="btn btn-secondary" onClick={back} style={{flex:1}}>← Back</button><button className="btn btn-primary" onClick={()=>onDone(d)} style={{flex:2,padding:"14px",fontSize:15}}>Meet {d.name}'s AI 🐾</button></div>
+      </div>
+    );
+  };
+  return(
+    <div className="onboarding">
+      <div style={{width:"100%",maxWidth:420}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:32}}><span style={{fontSize:22}}>🐾</span><span style={{fontSize:17,fontWeight:900}}>Dog Boy</span></div>
+        <div style={{display:"flex",gap:6,marginBottom:32}}>{[1,2,3,4].map(i=><div key={i} className={`step-dot ${i===step?"active":i<step?"done":""}`} style={{width:i===step?24:8}}/>)}</div>
+        {c()}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// DASHBOARD
+// ──────────────────────────────────────────────
+function Dashboard({dog,onReset}){
+  const [tab,setTab]=useState("home");
+  const [msgs,setMsgs]=useState([{from:"ai",text:`Hey! 👋 I'm your Dog Boy AI — and I actually know about ${dog.name}.\n\nAsk me anything about behavior, health, food, or training. I give answers based on ${dog.name}'s specific profile, not generic dog advice.\n\nAnd don't miss the **Shop tab** — I've put together personalized product picks based on ${dog.name}'s breed and personality. 🛍️`}]);
+  const [input,setInput]=useState("");
+  const [typing,setTyping]=useState(false);
+  const [vaccines,setVaccines]=useState(DEFAULT_VACCINES);
+  const [editVax,setEditVax]=useState(null);
+  const [meds,setMeds]=useState([]);
+  const [showMedForm,setShowMedForm]=useState(false);
+  const [newMed,setNewMed]=useState({name:"",dose:"",frequency:"",nextDue:""});
+  const [vet,setVet]=useState({name:"",phone:"",address:"",nextAppt:"",reason:""});
+  const [editVet,setEditVet]=useState(false);
+  const [logs,setLogs]=useState([]);
+  const [logCat,setLogCat]=useState("Health");
+  const [logNote,setLogNote]=useState("");
+  const [shopFilter,setShopFilter]=useState("All");
+  const msgEnd=useRef(null);
+  const products=useMemo(()=>getProducts(dog),[dog]);
+  const filteredProducts=shopFilter==="All"?products:products.filter(p=>p.cat===shopFilter);
+  const shopCats=["All",...Array.from(new Set(products.map(p=>p.cat)))];
+  const healthScore=useMemo(()=>calcHealthScore(vaccines,vet,meds,logs),[vaccines,vet,meds,logs]);
+  const tip=useMemo(()=>getDailyTip(dog),[dog]);
+  const breedFact=useMemo(()=>getBreedFact(dog.breed),[dog.breed]);
+  const hy=useMemo(()=>humanYears(dog.age,dog.weight),[dog]);
+  const overdue=vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())<0);
+  const dueSoon=vaccines.filter(v=>{if(!v.nextDue)return false;const d=(new Date(v.nextDue)-new Date())/86400000;return d>=0&&d<30;});
+  const dogE=dog.sex==="female"?"🐕‍🦺":"🐕";
+
+  useEffect(()=>{msgEnd.current?.scrollIntoView({behavior:"smooth"});},[msgs,typing]);
+
+  const sendMsg=(text)=>{
+    const msg=text||input.trim();if(!msg)return;
+    setMsgs(m=>[...m,{from:"user",text:msg}]);setInput("");setTyping(true);
+    setTimeout(()=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:getAI(msg,dog)}]);},1000+Math.random()*600);
+  };
+
+  const bold=(t)=>t.split(/(\*\*[^*]+\*\*)/).map((p,i)=>p.startsWith("**")&&p.endsWith("**")?<strong key={i}>{p.slice(2,-2)}</strong>:p);
+
+  const suggs=[`Why does ${dog.name} bark at strangers?`,`Best food for a ${dog.breed}?`,`How do I calm ${dog.name}?`,`How much exercise for ${dog.name}?`,`Is ${dog.name} drinking enough water?`];
+
+  // Score ring
+  const r=44,cx=52,cy=52,circ=2*Math.PI*r;
+  const offset=circ*(1-healthScore/100);
+
+  return(
+    <div className="app">
+      {/* TOP HEADER */}
+      <div className="top-header">
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:38,height:38,borderRadius:"50%",background:"#fef3c7",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{dogE}</div>
+            <div>
+              <div style={{fontWeight:800,fontSize:15,letterSpacing:"-0.3px"}}>{dog.name}</div>
+              <div style={{fontSize:11,color:"#a8a29e"}}>{dog.breed}{dog.age?` · ${dog.age} yrs`:""}{dog.weight?` · ${dog.weight} lbs`:""}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {(overdue.length>0||dueSoon.length>0)&&(
+              <div onClick={()=>setTab("health")} style={{background:overdue.length>0?"#fee2e2":"#fef3c7",color:overdue.length>0?"#991b1b":"#92400e",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                {overdue.length>0?`⚠️ ${overdue.length} overdue`:`📅 ${dueSoon.length} due soon`}
+              </div>
+            )}
+            <span style={{fontSize:20}}>🐾</span>
+          </div>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="app-content">
+
+        {/* ── HOME TAB ── */}
+        {tab==="home"&&<div style={{paddingTop:16}}>
+          {/* HEALTH SCORE CARD */}
+          <div className="gradient-card fade-up">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:".5px"}}>Health Score</div>
+                <div style={{fontSize:44,fontWeight:900,letterSpacing:"-2px",color:"#fff",lineHeight:1}}>{healthScore}</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:4,fontWeight:600}}>{scoreLabel(healthScore)}</div>
+                {hy>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:8}}>≈ {hy} in human years</div>}
+              </div>
+              <svg width={104} height={104} viewBox="0 0 104 104">
+                <circle className="score-track" cx={cx} cy={cy} r={r}/>
+                <circle className="score-fill" cx={cx} cy={cy} r={r} stroke={healthScore>=80?"#ffffff":healthScore>=60?"#fde68a":"#fca5a5"} strokeDasharray={circ} strokeDashoffset={offset} transform={`rotate(-90 ${cx} ${cy})`}/>
+                <text x={cx} y={cy+2} textAnchor="middle" dominantBaseline="middle" fill="#fff" fontSize="18" fontWeight="800">{dogE}</text>
+              </svg>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:14}}>
+              {[
+                ["💉",`${vaccines.filter(v=>v.nextDue).length}/${vaccines.length}`,"Vaccines"],
+                ["🏥",vet.name?"Set":"—","Vet"],
+                ["📋",logs.length,"Log entries"],
+              ].map(([e,v,l])=>(
+                <div key={l} className="stat-mini" style={{textAlign:"center"}}><div style={{fontSize:16}}>{e}</div><div style={{color:"#fff",fontWeight:800,fontSize:15,marginTop:2}}>{v}</div><div style={{color:"rgba(255,255,255,.7)",fontSize:10.5,marginTop:1}}>{l}</div></div>
+              ))}
+            </div>
+          </div>
+
+          {/* ALERTS */}
+          {(overdue.length>0||dueSoon.length>0||vet.nextAppt)&&(
+            <>
+              <div className="section-label">🔔 UPCOMING</div>
+              <div style={{margin:"0 16px 14px",display:"flex",flexDirection:"column",gap:8}}>
+                {overdue.map(v=>(
+                  <div key={v.id} onClick={()=>{setTab("health");}} style={{background:"#fee2e2",borderRadius:14,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#991b1b"}}>⚠️ OVERDUE</div><div style={{fontWeight:600,fontSize:14,marginTop:2}}>{v.name}</div></div>
+                    <span style={{color:"#dc2626",fontSize:20}}>›</span>
+                  </div>
+                ))}
+                {dueSoon.filter(v=>!overdue.find(o=>o.id===v.id)).map(v=>(
+                  <div key={v.id} onClick={()=>setTab("health")} style={{background:"#fef3c7",borderRadius:14,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#92400e"}}>📅 DUE SOON</div><div style={{fontWeight:600,fontSize:14,marginTop:2}}>{v.name}</div></div>
+                    <span style={{color:"#d97706",fontSize:20}}>›</span>
+                  </div>
+                ))}
+                {vet.nextAppt&&(
+                  <div onClick={()=>setTab("health")} style={{background:"#dcfce7",borderRadius:14,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}>
+                    <div><div style={{fontSize:12,fontWeight:700,color:"#166534"}}>🏥 VET APPOINTMENT</div><div style={{fontWeight:600,fontSize:14,marginTop:2}}>{new Date(vet.nextAppt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}{vet.reason?` · ${vet.reason}`:""}</div></div>
+                    <span style={{color:"#16a34a",fontSize:20}}>›</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* QUICK ACTIONS */}
+          <div className="section-label">⚡ QUICK ACTIONS</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"0 16px 14px"}}>
+            {[
+              {e:"💬",l:"Ask AI",sub:"Get answers now",t:"chat"},
+              {e:"🏥",l:"Health Hub",sub:`${overdue.length>0?`${overdue.length} overdue`:"All tracked"}`,t:"health"},
+              {e:"🛍️",l:"Shop",sub:"AI product picks",t:"shop"},
+              {e:"📋",l:"Log",sub:`${logs.length} entries`,t:"log"},
+            ].map(a=>(
+              <div key={a.l} className="quick-action" onClick={()=>setTab(a.t)}>
+                <div style={{fontSize:28}}>{a.e}</div>
+                <div style={{fontWeight:700,fontSize:13.5}}>{a.l}</div>
+                <div style={{fontSize:11,color:"#a8a29e"}}>{a.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* DAILY TIP */}
+          <div className="section-label">💡 TODAY'S TIP</div>
+          <div className="tip-card fade-up">
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <span style={{fontSize:28}}>{tip.emoji}</span>
+              <div style={{fontWeight:700,fontSize:15,color:"#fff"}}>{tip.title}</div>
+            </div>
+            <p style={{fontSize:14,color:"rgba(255,255,255,.85)",lineHeight:1.65}}>{tip.text}</p>
+          </div>
+
+          {/* BREED FACT */}
+          <div className="section-label">🐶 BREED SPOTLIGHT</div>
+          <div className="card-section fade-up">
+            <div style={{padding:"16px 18px"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",marginBottom:6,textTransform:"uppercase",letterSpacing:".5px"}}>{dog.breed}</div>
+              <p style={{fontSize:14,color:"#44403c",lineHeight:1.65}}>{breedFact}</p>
+            </div>
+          </div>
+
+          {/* EMERGENCY */}
+          <div style={{margin:"0 16px 24px"}}>
+            <a href="https://www.google.com/search?q=emergency+vet+near+me" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"block"}}>
+              <button className="emergency-btn">
+                <span style={{fontSize:20}}>🚨</span> Emergency Vet Finder <span style={{fontSize:14}}>→</span>
+              </button>
+            </a>
+            <p style={{fontSize:11,color:"#a8a29e",textAlign:"center",marginTop:8}}>Opens Google Maps search for emergency vets near you</p>
+          </div>
+        </div>}
+
+        {/* ── CHAT TAB ── */}
+        {tab==="chat"&&<>
+          <div style={{minHeight:"calc(100vh - 200px)"}}>
+            <div className="chat-messages">
+              {msgs.length===1&&<div className="fade-in" style={{display:"flex",flexWrap:"wrap",gap:7}}>{suggs.map(s=><span key={s} className="chip" onClick={()=>sendMsg(s)}>{s}</span>)}</div>}
+              {msgs.map((m,i)=>(
+                <div key={i} className={`fade-in ${m.from==="user"?"bubble-user":"bubble-ai"}`} style={{alignSelf:m.from==="user"?"flex-end":"flex-start",whiteSpace:"pre-wrap"}}>{bold(m.text)}</div>
+              ))}
+              {typing&&<div className="bubble-ai fade-in" style={{alignSelf:"flex-start",padding:"14px 18px"}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>}
+              <div ref={msgEnd}/>
+            </div>
+          </div>
+          <div className="chat-input-bar">
+            <textarea className="chat-textarea" rows={1} placeholder={`Ask anything about ${dog.name}...`} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}}} disabled={typing}/>
+            <button className="send-btn" onClick={()=>sendMsg()} disabled={!input.trim()||typing}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+          </div>
+        </>}
+
+        {/* ── HEALTH TAB ── */}
+        {tab==="health"&&<div style={{padding:"16px 0 24px"}}>
+          {/* VET INFO */}
+          <div className="section-label">🏥 VET INFORMATION</div>
+          <div className="card-section">
+            <div style={{padding:18}}>
+              {!editVet?(
+                !vet.name?(
+                  <div style={{textAlign:"center",padding:"16px 0"}}>
+                    <div style={{fontSize:36,marginBottom:10}}>🏥</div>
+                    <p style={{fontSize:13.5,color:"#a8a29e",marginBottom:14}}>Add your vet's info to track appointments.</p>
+                    <button className="btn-sm" onClick={()=>setEditVet(true)}>+ Add Vet Info</button>
+                  </div>
+                ):(
+                  <>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                      <div><div style={{fontWeight:700,fontSize:15}}>{vet.name}</div>{vet.phone&&<div style={{fontSize:13,color:"#57534e",marginTop:3}}>📞 {vet.phone}</div>}{vet.address&&<div style={{fontSize:13,color:"#57534e",marginTop:2}}>📍 {vet.address}</div>}</div>
+                      <button className="btn-ghost-sm" onClick={()=>setEditVet(true)}>Edit</button>
+                    </div>
+                    {vet.nextAppt&&<div style={{background:"#fef3c7",borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:11,fontWeight:700,color:"#92400e"}}>NEXT APPOINTMENT</div><div style={{fontSize:14,fontWeight:600,marginTop:2}}>{new Date(vet.nextAppt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>{vet.reason&&<div style={{fontSize:12,color:"#78350f",marginTop:1}}>{vet.reason}</div>}</div><span style={{fontSize:26}}>📅</span></div>}
+                  </>
+                )
+              ):(
+                <div className="fade-in">
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:14}}>Vet Details</div>
+                  {[["name","Clinic Name","Dr. Sarah Chen Veterinary"],["phone","Phone","(555) 123-4567"],["address","Address","123 Main St, Your City"]].map(([k,l,p])=>(
+                    <div key={k} style={{marginBottom:10}}><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>{l}</label><input className="input-sm" style={{width:"100%"}} placeholder={p} value={vet[k]} onChange={e=>setVet(v=>({...v,[k]:e.target.value}))}/></div>
+                  ))}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                    <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Next Appt</label><input className="input-sm" style={{width:"100%"}} type="date" value={vet.nextAppt} onChange={e=>setVet(v=>({...v,nextAppt:e.target.value}))}/></div>
+                    <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Reason</label><input className="input-sm" style={{width:"100%"}} placeholder="Annual checkup" value={vet.reason} onChange={e=>setVet(v=>({...v,reason:e.target.value}))}/></div>
+                  </div>
+                  <div style={{marginBottom:14,background:"#e0f2fe",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:11.5,fontWeight:700,color:"#0369a1"}}>🔗 COMING SOON — VET PORTAL SYNC</div><div style={{fontSize:12,color:"#0c4a6e",marginTop:3}}>We're building direct integrations with Covetrus, IDEXX and ezyVet so your records sync automatically.</div></div>
+                  <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setEditVet(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" onClick={()=>setEditVet(false)} style={{flex:2}}>Save</button></div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* VACCINES */}
+          <div className="section-label">💉 VACCINE TRACKER</div>
+          <div className="card-section">
+            <div style={{padding:"0 18px"}}>
+              {vaccines.map((v,i)=>{
+                const st=vaccineStatus(v.nextDue);
+                return(
+                  <div key={v.id}>
+                    {editVax===i?(
+                      <div className="fade-in" style={{background:"#fffbeb",borderRadius:12,padding:14,margin:"12px 0"}}>
+                        <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>{v.name}</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                          <div><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Last Given</label><input className="input-sm" style={{width:"100%"}} type="date" value={v.lastGiven} onChange={e=>{const u=[...vaccines];u[i]={...u[i],lastGiven:e.target.value};setVaccines(u);}}/></div>
+                          <div><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Next Due</label><input className="input-sm" style={{width:"100%"}} type="date" value={v.nextDue} onChange={e=>{const u=[...vaccines];u[i]={...u[i],nextDue:e.target.value};setVaccines(u);}}/></div>
+                        </div>
+                        <input className="input-sm" style={{width:"100%",marginBottom:10}} placeholder="Notes..." value={v.notes} onChange={e=>{const u=[...vaccines];u[i]={...u[i],notes:e.target.value};setVaccines(u);}}/>
+                        <button className="btn-sm" style={{width:"100%"}} onClick={()=>setEditVax(null)}>Save</button>
+                      </div>
+                    ):(
+                      <div onClick={()=>setEditVax(i)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 0",borderBottom:i<vaccines.length-1?"1px solid #f5f5f0":"none",cursor:"pointer"}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13.5,fontWeight:600}}>{v.name}</div>
+                          <div style={{fontSize:11,color:"#a8a29e",marginTop:2}}>{v.required?"Required":"Optional"} · {v.frequency}{v.nextDue?` · Due: ${new Date(v.nextDue).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`:""}</div>
+                          {v.notes&&<div style={{fontSize:11,color:"#78350f",marginTop:2}}>📝 {v.notes}</div>}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}><span className={st.cls}>{st.label}</span><span style={{color:"#d4c5a9",fontSize:18}}>›</span></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* PROGRESS */}
+          <div style={{margin:"0 16px 14px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:12,fontWeight:700,color:"#78350f"}}>Vaccine Coverage</span><span style={{fontSize:12,fontWeight:700,color:"#f59e0b"}}>{vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())>0).length}/{vaccines.length}</span></div>
+            <div className="progress-bar-track"><div className="progress-bar-fill" style={{width:`${(vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())>0).length/vaccines.length)*100}%`}}/></div>
+          </div>
+
+          {/* MEDICATIONS */}
+          <div className="section-label">💊 MEDICATIONS</div>
+          <div className="card-section">
+            <div style={{padding:18}}>
+              {meds.length===0&&!showMedForm&&<div style={{textAlign:"center",padding:"10px 0"}}><p style={{fontSize:13,color:"#a8a29e",marginBottom:12}}>No medications tracked yet.</p><button className="btn-sm" onClick={()=>setShowMedForm(true)}>+ Add Medication</button></div>}
+              {meds.map((m,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #f5f5f0"}}>
+                  <div><div style={{fontWeight:600,fontSize:13.5}}>{m.name}</div><div style={{fontSize:11,color:"#a8a29e"}}>{m.dose}{m.frequency?` · ${m.frequency}`:""}</div>{m.nextDue&&<div style={{fontSize:11,color:"#78350f"}}>Next: {new Date(m.nextDue).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>}</div>
+                  <button onClick={()=>setMeds(ms=>ms.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"#d4c5a9",fontSize:20,cursor:"pointer",padding:"0 6px"}}>×</button>
+                </div>
+              ))}
+              {showMedForm&&<div className="fade-in" style={{marginTop:meds.length>0?12:0}}>
+                {[["name","Medication Name","e.g. Heartgard Plus"],["dose","Dose","e.g. 1 chew"],["frequency","Frequency","e.g. Monthly"]].map(([k,l,p])=>(
+                  <div key={k} style={{marginBottom:9}}><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>{l}</label><input className="input-sm" style={{width:"100%"}} placeholder={p} value={newMed[k]} onChange={e=>setNewMed(m=>({...m,[k]:e.target.value}))}/></div>
+                ))}
+                <div style={{marginBottom:12}}><label style={{fontSize:11,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Next Due</label><input className="input-sm" style={{width:"100%"}} type="date" value={newMed.nextDue} onChange={e=>setNewMed(m=>({...m,nextDue:e.target.value}))}/></div>
+                <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setShowMedForm(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" style={{flex:2}} disabled={!newMed.name} onClick={()=>{setMeds(ms=>[...ms,newMed]);setNewMed({name:"",dose:"",frequency:"",nextDue:""});setShowMedForm(false);}}>Add</button></div>
+              </div>}
+              {meds.length>0&&!showMedForm&&<button className="btn-ghost-sm" style={{width:"100%",marginTop:12}} onClick={()=>setShowMedForm(true)}>+ Add Another</button>}
+            </div>
+          </div>
+
+          {/* EMERGENCY */}
+          <div style={{margin:"4px 16px 8px"}}>
+            <a href="https://www.google.com/search?q=emergency+vet+near+me" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"block"}}><button className="emergency-btn"><span style={{fontSize:20}}>🚨</span> Emergency Vet Finder</button></a>
+          </div>
+        </div>}
+
+        {/* ── SHOP TAB ── */}
+        {tab==="shop"&&<div style={{padding:"16px 0 24px"}}>
+          <div style={{background:"linear-gradient(135deg,#f59e0b,#d97706)",margin:"0 16px 16px",borderRadius:18,padding:"16px 18px",color:"#fff"}}>
+            <div style={{fontSize:12,fontWeight:700,opacity:.8,marginBottom:4,textTransform:"uppercase",letterSpacing:".5px"}}>✨ AI PICKS FOR {dog.name.toUpperCase()}</div>
+            <div style={{fontSize:15,fontWeight:700,lineHeight:1.4}}>Personalized for {dog.name}'s breed, age & personality</div>
+            <div style={{fontSize:11.5,opacity:.75,marginTop:4}}>Affiliate links to Chewy help keep Dog Boy running 🐾</div>
+          </div>
+          <div style={{display:"flex",gap:7,overflowX:"auto",padding:"0 16px 12px",scrollbarWidth:"none"}}>
+            {shopCats.map(c=>(
+              <span key={c} onClick={()=>setShopFilter(c)} style={{background:shopFilter===c?"#f59e0b":"#fff",color:shopFilter===c?"#fff":"#78350f",border:`1.5px solid ${shopFilter===c?"#d97706":"#f0e8d6"}`,borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                {c}
+              </span>
+            ))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10,padding:"0 16px"}}>
+            {filteredProducts.map((p,i)=>(
+              <div key={i} className="product-card fade-in">
+                <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+                  <div style={{width:54,height:54,borderRadius:13,background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>{p.emoji}</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
+                      <span style={{fontSize:11,fontWeight:600,background:"#f3f4f6",color:"#57534e",borderRadius:5,padding:"2px 7px"}}>{p.cat}</span>
+                      {p.ai&&<span style={{background:"#f59e0b",color:"#fff",fontSize:11,fontWeight:700,borderRadius:20,padding:"2px 9px"}}>⭐ AI Pick</span>}
+                    </div>
+                    <div style={{fontWeight:700,fontSize:14,marginBottom:2,lineHeight:1.3}}>{p.name}</div>
+                    <div style={{fontSize:12,color:"#a8a29e",marginBottom:7}}>{p.brand} · ⭐ {p.stars} ({p.rev})</div>
+                    <div style={{fontSize:12.5,color:"#44403c",lineHeight:1.6,marginBottom:10,background:"#fffbeb",borderRadius:9,padding:"8px 11px",borderLeft:"3px solid #f59e0b"}}>
+                      <span style={{fontWeight:700,color:"#78350f"}}>Why for {dog.name}: </span>{p.why}
+                    </div>
+                    <a href={`https://www.chewy.com/search?query=${p.q}`} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none"}}><button className="btn-sm">Shop on Chewy →</button></a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>}
+
+        {/* ── LOG TAB ── */}
+        {tab==="log"&&<div style={{padding:"16px 0 24px"}}>
+          <div className="section-label">📋 HEALTH & BEHAVIOR LOG</div>
+          <div className="card-section">
+            <div style={{padding:16}}>
+              <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:8,marginBottom:12,scrollbarWidth:"none"}}>
+                {["Health","Food","Exercise","Behavior","Note"].map(c=>(
+                  <span key={c} onClick={()=>setLogCat(c)} style={{background:logCat===c?"#f59e0b":"#fff",color:logCat===c?"#fff":"#78350f",border:`1.5px solid ${logCat===c?"#d97706":"#f0e8d6"}`,borderRadius:20,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                    {c==="Health"?"🏥":c==="Food"?"🦴":c==="Exercise"?"🏃":c==="Behavior"?"🐾":"📝"} {c}
+                  </span>
+                ))}
+              </div>
+              <textarea className="input" rows={3} placeholder={`What's going on with ${dog.name}?`} value={logNote} onChange={e=>setLogNote(e.target.value)} style={{resize:"none",marginBottom:10,fontSize:14}}/>
+              <button className="btn btn-primary" style={{width:"100%",padding:"11px",fontSize:14}} onClick={()=>{if(!logNote.trim())return;setLogs(l=>[{category:logCat,note:logNote,date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),id:Date.now()},...l]);setLogNote("");}} disabled={!logNote.trim()}>+ Add Entry</button>
+            </div>
+          </div>
+          {logs.length===0?(
+            <div style={{textAlign:"center",padding:"32px 0",color:"#a8a29e"}}><div style={{fontSize:38,marginBottom:10}}>📋</div><p style={{fontSize:14}}>No entries yet.</p></div>
+          ):logs.map(l=>(
+            <div key={l.id} className="fade-in" style={{background:"#fff",borderRadius:14,padding:"13px 16px",border:"1px solid #f0e8d6",margin:"0 16px 9px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#f59e0b",background:"#fef3c7",padding:"2px 10px",borderRadius:20}}>{l.category}</span>
+                <span style={{fontSize:11,color:"#a8a29e"}}>{l.date}</span>
+              </div>
+              <p style={{fontSize:13.5,color:"#44403c",lineHeight:1.6}}>{l.note}</p>
+            </div>
+          ))}
+        </div>}
+
+        {/* ── PROFILE TAB ── */}
+        {tab==="profile"&&<div style={{padding:"16px 0 24px"}}>
+          <div className="card-section fade-up" style={{textAlign:"center",padding:"24px 20px",margin:"0 16px 14px"}}>
+            <div style={{width:76,height:76,borderRadius:"50%",background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"3px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 14px",boxShadow:"0 4px 20px rgba(245,158,11,.25)"}}>{dogE}</div>
+            <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-0.5px",marginBottom:4}}>{dog.name}</h2>
+            <p style={{fontSize:14,color:"#78350f",fontWeight:600,marginBottom:10}}>{dog.breed}</p>
+            <div style={{display:"flex",justifyContent:"center",gap:12}}>
+              <div style={{textAlign:"center"}}><div style={{fontWeight:800,fontSize:18,color:"#f59e0b"}}>{healthScore}</div><div style={{fontSize:11,color:"#a8a29e"}}>Health Score</div></div>
+              <div style={{width:1,background:"#f0e8d6"}}/>
+              <div style={{textAlign:"center"}}><div style={{fontWeight:800,fontSize:18,color:"#f59e0b"}}>{dog.age||"?"}</div><div style={{fontSize:11,color:"#a8a29e"}}>Years Old</div></div>
+              <div style={{width:1,background:"#f0e8d6"}}/>
+              <div style={{textAlign:"center"}}><div style={{fontWeight:800,fontSize:18,color:"#f59e0b"}}>{hy||"?"}</div><div style={{fontSize:11,color:"#a8a29e"}}>Human Yrs</div></div>
+            </div>
+          </div>
+          <div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:18}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#a8a29e",textTransform:"uppercase",letterSpacing:".5px",marginBottom:14}}>Dog Details</div>
+              {[["Age",dog.age?`${dog.age} year${dog.age==1?"":"s"}`:"Not set"],["Weight",dog.weight?`${dog.weight} lbs`:"Not set"],["Sex",dog.sex==="male"?"♂ Male":"♀ Female"],["Breed",dog.breed],["Vet",vet.name||"Not set"],["Vaccines",`${vaccines.filter(v=>v.nextDue).length} of ${vaccines.length} tracked`]].map(([l,v])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #f5f5f0"}}>
+                  <span style={{fontSize:13.5,color:"#78350f",fontWeight:600}}>{l}</span>
+                  <span style={{fontSize:13.5,color:"#44403c"}}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {dog.traits?.length>0&&<div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:18}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#a8a29e",textTransform:"uppercase",letterSpacing:".5px",marginBottom:12}}>Personality</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{dog.traits.map(t=><span key={t} style={{background:"#fef3c7",color:"#78350f",borderRadius:20,padding:"5px 13px",fontSize:13,fontWeight:600}}>{t}</span>)}</div>
+            </div>
+          </div>}
+          <div style={{margin:"0 16px 14px"}}>
+            <button onClick={onReset} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #f0e8d6",borderRadius:12,color:"#78350f",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>+ Add Another Dog</button>
+          </div>
+          <div style={{margin:"0 16px",background:"#1c1917",borderRadius:16,padding:"16px 18px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#f59e0b",marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>💰 Revenue Model</div>
+            {[["💳 Subscriptions","$9.99/mo · 1,700 users = $200K/yr"],["🛍️ Chewy Affiliate","4–7% on every product click"],["💊 Premium Brands","Up to 15% (Ollie, supplements)"],["🔗 Vet Partnerships","Future B2B revenue stream"]].map(([k,v])=>(
+              <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #292524"}}>
+                <span style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,.7)"}}>{k}</span>
+                <span style={{fontSize:12,color:"rgba(255,255,255,.5)"}}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>}
+
+      </div>
+
+      {/* BOTTOM NAV */}
+      <div className="bottom-nav">
+        {[["home","🏠","Home"],["chat","💬","Chat"],["health","🏥","Health"],["shop","🛍️","Shop"],["profile","🐕","Profile"]].map(([id,icon,label])=>(
+          <button key={id} className={`nav-item ${tab===id?"active":""}`} onClick={()=>setTab(id)}>
+            <span className="nav-icon">{icon}</span>
+            <span className="nav-label" style={{color:tab===id?"#f59e0b":"#a8a29e"}}>{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// APP ROOT
+// ──────────────────────────────────────────────
+function App(){
+  const [showSplash,setShowSplash]=useState(true);
+  const [page,setPage]=useState("landing");
+  const [dog,setDog]=useState(null);
+  return(
+    <>
+      {showSplash&&<Splash done={()=>setShowSplash(false)}/>}
+      {page==="landing"&&<Landing onStart={()=>setPage("onboarding")}/>}
+      {page==="onboarding"&&<Onboarding onDone={d=>{setDog(d);setPage("dashboard");}}/>}
+      {page==="dashboard"&&dog&&<Dashboard dog={dog} onReset={()=>setPage("onboarding")}/>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
