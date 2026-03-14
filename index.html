@@ -276,6 +276,44 @@ function getAI(msg,dog){
   return f[Math.floor(Math.random()*f.length)];
 }
 
+// Breed Care Calendar
+function getCareCalendar(dog){
+  const month=new Date().getMonth();
+  const breed=(dog?.breed||"").toLowerCase();
+  const a=parseInt(dog?.age)||2,w=parseInt(dog?.weight)||20;
+  const isLongCoat=["shih","maltese","yorkie","poodle","golden","collie","husky","bichon","lhasa","pomeranian","doodle","cavapoo"].some(b=>breed.includes(b));
+  const isLarge=w>50,isPuppy=a<1,isSenior=a>=7;
+  const spring=[2,3,4],summer=[5,6,7],fall=[8,9,10],winter=[11,0,1];
+  const tasks=[
+    {emoji:"💊",title:"Flea & tick prevention",freq:"Monthly"},
+    {emoji:"❤️",title:"Heartworm prevention",freq:"Monthly"},
+    {emoji:"🪥",title:"Brush teeth",freq:"3x/week"},
+    {emoji:"✂️",title:"Trim nails",freq:"Every 3–4 weeks"},
+    {emoji:"👂",title:"Check & clean ears",freq:"Weekly"},
+  ];
+  if(isLongCoat){tasks.push({emoji:"✂️",title:"Grooming appointment",freq:"Every 4–6 weeks"});tasks.push({emoji:"🪮",title:"Brush coat",freq:"Daily"});}
+  else{tasks.push({emoji:"🪮",title:"Brush coat",freq:"Weekly"});}
+  if(isPuppy){tasks.push({emoji:"🐣",title:"Puppy socialization activities",freq:"Weekly"});tasks.push({emoji:"📚",title:"Puppy training class",freq:"Weekly"});}
+  if(isSenior){tasks.push({emoji:"🩸",title:"Senior bloodwork check",freq:"Every 6 months"});tasks.push({emoji:"💊",title:"Joint supplement review",freq:"Monthly"});}
+  if(isLarge){tasks.push({emoji:"⚠️",title:"Monitor for bloat after meals",freq:"Daily"});}
+  if(spring.includes(month)){tasks.push({emoji:"🌸",title:"Annual vet wellness exam",freq:"This month"});tasks.push({emoji:"🌿",title:"Update flea/tick for warmer months",freq:"Now"});}
+  if(summer.includes(month)){tasks.push({emoji:"🌡️",title:"Check paws after hot pavement walks",freq:"Daily"});tasks.push({emoji:"💧",title:"Extra hydration monitoring",freq:"Daily"});}
+  if(fall.includes(month)){tasks.push({emoji:"🍂",title:"Holiday anxiety prep",freq:"Seasonal"});}
+  if(winter.includes(month)){tasks.push({emoji:"🧴",title:"Paw balm for cold/salt walks",freq:"Daily"});tasks.push({emoji:"🛏️",title:"Ensure warm sleeping area",freq:"Seasonal"});}
+  return tasks;
+}
+
+// Birthday utils
+function getBirthdayInfo(birthday){
+  if(!birthday)return null;
+  const today=new Date();today.setHours(0,0,0,0);
+  const bday=new Date(birthday);
+  const next=new Date(today.getFullYear(),bday.getMonth(),bday.getDate());
+  if(next<today)next.setFullYear(next.getFullYear()+1);
+  const days=Math.round((next-today)/86400000);
+  return{days,isToday:days===0,isSoon:days<=7};
+}
+
 // Product Recommendations
 function getProducts(dog){
   const w=parseInt(dog?.weight)||20,a=parseInt(dog?.age)||3,t=dog?.traits||[],b=dog?.breed||"",n=dog?.name||"your dog";
@@ -698,6 +736,9 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     sb.from('checkins').select('*').eq('dog_id',dogId).order('date',{ascending:false}).then(({data})=>{
       if(data?.length)setCheckins(data);
     });
+    sb.from('milestones').select('*').eq('dog_id',dogId).order('date',{ascending:false}).then(({data})=>{
+      if(data?.length)setMilestones(data);
+    });
   },[sb,dogId]);
 
   // Save progress banner state
@@ -771,6 +812,33 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     const cups=(dailyCal/cal).toFixed(1);
     return{dailyCal,cups,morning:(dailyCal/cal/2).toFixed(1),evening:(dailyCal/cal/2).toFixed(1)};
   },[dog.weight,dog.age,foodCalPerCup]);
+
+  // Milestones
+  const [milestones,setMilestones]=useState([]);
+  const [showMilestoneForm,setShowMilestoneForm]=useState(false);
+  const [newMilestone,setNewMilestone]=useState({title:"",date:"",emoji:"🎉"});
+
+  // Birthday
+  const [birthday,setBirthday]=useState(dog.birthday||"");
+  const bdayInfo=useMemo(()=>getBirthdayInfo(birthday),[birthday]);
+  const careCalendar=useMemo(()=>getCareCalendar(dog),[dog]);
+  const [checkedCare,setCheckedCare]=useState({});
+
+  // Browser notifications
+  useEffect(()=>{
+    if(!('Notification' in window))return;
+    if(Notification.permission==='default')Notification.requestPermission();
+  },[]);
+  useEffect(()=>{
+    if(Notification.permission!=='granted')return;
+    const overdue=vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())<0);
+    if(overdue.length>0){
+      setTimeout(()=>{try{new Notification('Dog Boy 🐾',{body:`${dog.name}'s ${overdue[0].name} vaccine is overdue!`,icon:'/icon-192.png'});}catch(e){}},2000);
+    }
+    if(bdayInfo?.isToday){
+      setTimeout(()=>{try{new Notification('🎂 Happy Birthday!',{body:`It's ${dog.name}'s birthday today! 🎉`,icon:'/icon-192.png'});}catch(e){}},1500);
+    }
+  },[vaccines,bdayInfo]);
 
   // Dog photo
   const [dogPhoto,setDogPhoto]=useState(dog.photo_url||null);
@@ -923,6 +991,15 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
               ))}
             </div>
           </div>
+
+          {/* BIRTHDAY BANNER */}
+          {bdayInfo&&(bdayInfo.isToday||bdayInfo.isSoon)&&(
+            <div className="fade-up" style={{margin:"0 16px 14px",background:bdayInfo.isToday?"linear-gradient(135deg,#f59e0b,#d97706)":"#fff",borderRadius:18,padding:"16px 18px",border:bdayInfo.isToday?"none":"2px solid #f59e0b"}}>
+              <div style={{fontSize:28,marginBottom:6}}>{bdayInfo.isToday?"🎂":"🎁"}</div>
+              <div style={{fontWeight:800,fontSize:16,color:bdayInfo.isToday?"#fff":"#1c1917",marginBottom:4}}>{bdayInfo.isToday?`Happy Birthday, ${dog.name}! 🎉`:`${dog.name}'s birthday is in ${bdayInfo.days} day${bdayInfo.days===1?"":"s"}!`}</div>
+              <p style={{fontSize:13,color:bdayInfo.isToday?"rgba(255,255,255,.85)":"#78350f"}}>{bdayInfo.isToday?"Give them some extra love today 🐾":`Coming up on ${new Date(birthday).toLocaleDateString("en-US",{month:"long",day:"numeric"})}`}</p>
+            </div>
+          )}
 
           {/* ALERTS */}
           {(overdue.length>0||dueSoon.length>0||vet.nextAppt)&&(
@@ -1113,8 +1190,11 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
                 ):(
                   <>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-                      <div><div style={{fontWeight:700,fontSize:15}}>{vet.name}</div>{vet.phone&&<div style={{fontSize:13,color:"#57534e",marginTop:3}}>📞 {vet.phone}</div>}{vet.address&&<div style={{fontSize:13,color:"#57534e",marginTop:2}}>📍 {vet.address}</div>}</div>
-                      <button className="btn-ghost-sm" onClick={()=>setEditVet(true)}>Edit</button>
+                      <div><div style={{fontWeight:700,fontSize:15}}>{vet.name}</div>{vet.phone&&<div style={{fontSize:13,color:"#57534e",marginTop:3}}>📞 <a href={`tel:${vet.phone}`} style={{color:"#57534e",textDecoration:"none"}}>{vet.phone}</a></div>}{vet.address&&<div style={{fontSize:13,color:"#57534e",marginTop:2}}>📍 {vet.address}</div>}</div>
+                      <div style={{display:"flex",gap:6,flexDirection:"column",alignItems:"flex-end"}}>
+                        <button className="btn-ghost-sm" onClick={()=>setEditVet(true)}>Edit</button>
+                        <a href={vet.website||`https://www.google.com/search?q=${encodeURIComponent((vet.name||"vet")+" appointment booking")}`} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none"}}><button className="btn-sm">Book →</button></a>
+                      </div>
                     </div>
                     {vet.nextAppt&&<div style={{background:"#fef3c7",borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:11,fontWeight:700,color:"#92400e"}}>NEXT APPOINTMENT</div><div style={{fontSize:14,fontWeight:600,marginTop:2}}>{new Date(vet.nextAppt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>{vet.reason&&<div style={{fontSize:12,color:"#78350f",marginTop:1}}>{vet.reason}</div>}</div><span style={{fontSize:26}}>📅</span></div>}
                   </>
@@ -1130,6 +1210,7 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
                     <div><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Reason</label><input className="input-sm" style={{width:"100%"}} placeholder="Annual checkup" value={vet.reason} onChange={e=>setVet(v=>({...v,reason:e.target.value}))}/></div>
                   </div>
                   <div style={{marginBottom:14,background:"#e0f2fe",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:11.5,fontWeight:700,color:"#0369a1"}}>🔗 COMING SOON — VET PORTAL SYNC</div><div style={{fontSize:12,color:"#0c4a6e",marginTop:3}}>We're building direct integrations with Covetrus, IDEXX and ezyVet so your records sync automatically.</div></div>
+                  <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:4}}>Vet Website / Booking URL</label><input className="input-sm" style={{width:"100%"}} placeholder="https://..." value={vet.website||""} onChange={e=>setVet(v=>({...v,website:e.target.value}))}/></div>
                   <div style={{display:"flex",gap:8}}><button className="btn-ghost-sm" onClick={()=>setEditVet(false)} style={{flex:1}}>Cancel</button><button className="btn-sm" onClick={async()=>{
                     if(sb&&dogId){if(vetDbId){await sb.from('vet_info').update({name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt}).eq('id',vetDbId);}else{const{data}=await sb.from('vet_info').insert({dog_id:dogId,name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt}).select().single();if(data)setVetDbId(data.id);}}
                     setEditVet(false);
@@ -1278,6 +1359,25 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
             </div>
           </div>
 
+          {/* CARE CALENDAR */}
+          <div className="section-label">📅 {new Date().toLocaleString("en-US",{month:"long"})} CARE CHECKLIST</div>
+          <div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:"0 18px"}}>
+              {careCalendar.map((task,i)=>(
+                <div key={i} onClick={()=>setCheckedCare(c=>({...c,[i]:!c[i]}))} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<careCalendar.length-1?"1px solid #f5f5f0":"none",cursor:"pointer",opacity:checkedCare[i]?.5:1}}>
+                  <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${checkedCare[i]?"#f59e0b":"#e7dfc8"}`,background:checkedCare[i]?"#f59e0b":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .15s"}}>
+                    {checkedCare[i]&&<svg width="11" height="9" viewBox="0 0 11 9"><path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/></svg>}
+                  </div>
+                  <div style={{flex:1}}>
+                    <span style={{fontSize:14,marginRight:6}}>{task.emoji}</span>
+                    <span style={{fontSize:13.5,fontWeight:600,textDecoration:checkedCare[i]?"line-through":"none"}}>{task.title}</span>
+                  </div>
+                  <span style={{fontSize:11,color:"#a8a29e",fontWeight:600,flexShrink:0}}>{task.freq}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* EMERGENCY */}
           <div style={{margin:"4px 16px 8px"}}>
             <a href="https://www.google.com/search?q=emergency+vet+near+me" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"block"}}><button className="emergency-btn"><span style={{fontSize:20}}>🚨</span> Emergency Vet Finder</button></a>
@@ -1391,6 +1491,52 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
               <div style={{display:"flex",flexWrap:"wrap",gap:7}}>{dog.traits.map(t=><span key={t} style={{background:"#fef3c7",color:"#78350f",borderRadius:20,padding:"5px 13px",fontSize:13,fontWeight:600}}>{t}</span>)}</div>
             </div>
           </div>}
+
+          {/* BIRTHDAY */}
+          <div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:18}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#a8a29e",textTransform:"uppercase",letterSpacing:".5px",marginBottom:12}}>🎂 Birthday</div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <input className="input-sm" style={{flex:1}} type="date" value={birthday} onChange={e=>setBirthday(e.target.value)}/>
+                <button className="btn-sm" disabled={!birthday||!dogId} onClick={async()=>{
+                  if(sb&&dogId)await sb.from('dogs').update({birthday}).eq('id',dogId);
+                }}>Save</button>
+              </div>
+              {bdayInfo&&<p style={{fontSize:12,color:"#78350f",marginTop:8,fontWeight:600}}>{bdayInfo.isToday?`🎉 It's ${dog.name}'s birthday today!`:bdayInfo.isSoon?`🎁 ${bdayInfo.days} days until birthday!`:`Next birthday in ${bdayInfo.days} days`}</p>}
+            </div>
+          </div>
+
+          {/* MILESTONES */}
+          <div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#a8a29e",textTransform:"uppercase",letterSpacing:".5px"}}>🏆 Milestones</div>
+                <button className="btn-ghost-sm" onClick={()=>setShowMilestoneForm(f=>!f)}>+ Add</button>
+              </div>
+              {showMilestoneForm&&(
+                <div className="fade-in" style={{background:"#fffbeb",borderRadius:10,padding:12,marginBottom:12}}>
+                  <div style={{display:"flex",gap:7,marginBottom:8}}>
+                    <input className="input-sm" style={{width:44}} placeholder="🏅" value={newMilestone.emoji} onChange={e=>setNewMilestone(m=>({...m,emoji:e.target.value}))}/>
+                    <input className="input-sm" style={{flex:1}} placeholder="First vet visit, learned sit..." value={newMilestone.title} onChange={e=>setNewMilestone(m=>({...m,title:e.target.value}))}/>
+                    <input className="input-sm" type="date" value={newMilestone.date} onChange={e=>setNewMilestone(m=>({...m,date:e.target.value}))}/>
+                  </div>
+                  <button className="btn-sm" style={{width:"100%"}} disabled={!newMilestone.title||!newMilestone.date} onClick={async()=>{
+                    let ms={...newMilestone,id:Date.now()};
+                    if(sb&&dogId){const{data}=await sb.from('milestones').insert({dog_id:dogId,title:newMilestone.title,date:newMilestone.date,emoji:newMilestone.emoji}).select().single();if(data)ms={...ms,id:data.id};}
+                    setMilestones(m=>[ms,...m]);setNewMilestone({title:"",date:"",emoji:"🎉"});setShowMilestoneForm(false);
+                  }}>Save Milestone</button>
+                </div>
+              )}
+              {milestones.length===0?(
+                <p style={{fontSize:13,color:"#a8a29e",textAlign:"center",padding:"8px 0"}}>No milestones yet. Add {dog.name}'s first big moments!</p>
+              ):milestones.map((m,i)=>(
+                <div key={m.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:i<milestones.length-1?"1px solid #f5f5f0":"none"}}>
+                  <span style={{fontSize:22}}>{m.emoji}</span>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13.5}}>{m.title}</div><div style={{fontSize:11,color:"#a8a29e",marginTop:1}}>{m.date}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
           <div style={{margin:"0 16px 14px",display:"flex",flexDirection:"column",gap:10}}>
             <button onClick={onReset} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #f0e8d6",borderRadius:12,color:"#78350f",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>+ Add Another Dog</button>
             <button onClick={onLogout} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #fee2e2",borderRadius:12,color:"#991b1b",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>Log Out</button>
