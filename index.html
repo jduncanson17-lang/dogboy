@@ -692,6 +692,12 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     sb.from('health_logs').select('*').eq('dog_id',dogId).order('created_at',{ascending:false}).then(({data})=>{
       if(data?.length)setLogs(data.map(l=>({id:l.id,category:l.mood||"Health",note:l.note,date:l.date})));
     });
+    sb.from('weight_logs').select('*').eq('dog_id',dogId).order('created_at',{ascending:false}).then(({data})=>{
+      if(data?.length)setWeightLogs(data.map(w=>({id:w.id,weight:w.weight,date:w.date,notes:w.notes||""})));
+    });
+    sb.from('checkins').select('*').eq('dog_id',dogId).order('date',{ascending:false}).then(({data})=>{
+      if(data?.length)setCheckins(data);
+    });
   },[sb,dogId]);
 
   // Save progress banner state
@@ -727,6 +733,44 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     }catch(e){setSaveError(e.message);}
     finally{setSaving(false);}
   };
+
+  // Weight tracking
+  const [weightLogs,setWeightLogs]=useState([]);
+  const [newWeight,setNewWeight]=useState("");
+  const [weightNote,setWeightNote]=useState("");
+
+  // Daily check-in
+  const [checkins,setCheckins]=useState([]);
+  const todayStr=new Date().toISOString().split('T')[0];
+  const todayCheckin=checkins.find(c=>c.date===todayStr)||null;
+  const streak=useMemo(()=>{
+    if(!checkins.length)return 0;
+    const sorted=[...checkins].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    let s=0,d=new Date();
+    for(const c of sorted){
+      const cd=new Date(c.date);const diff=Math.round((new Date(d.toISOString().split('T')[0])-new Date(c.date))/(86400000));
+      if(diff>1)break;
+      s++;d=cd;
+    }
+    return s;
+  },[checkins]);
+
+  // Symptom checker
+  const [symptomInput,setSymptomInput]=useState("");
+  const [symptomResult,setSymptomResult]=useState(null);
+  const [symptomLoading,setSymptomLoading]=useState(false);
+
+  // Food calculator
+  const [foodCalPerCup,setFoodCalPerCup]=useState("");
+  const [showFoodCalc,setShowFoodCalc]=useState(false);
+  const foodPortions=useMemo(()=>{
+    const w=parseInt(dog.weight)||20,a=parseInt(dog.age)||3,cal=parseInt(foodCalPerCup)||400;
+    const rer=70*Math.pow(w*0.453592,0.75);
+    const factor=a<1?3:a>7?1.2:1.6;
+    const dailyCal=Math.round(rer*factor);
+    const cups=(dailyCal/cal).toFixed(1);
+    return{dailyCal,cups,morning:(dailyCal/cal/2).toFixed(1),evening:(dailyCal/cal/2).toFixed(1)};
+  },[dog.weight,dog.age,foodCalPerCup]);
 
   // Dog photo
   const [dogPhoto,setDogPhoto]=useState(dog.photo_url||null);
@@ -860,7 +904,8 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
                 <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.7)",marginBottom:6,textTransform:"uppercase",letterSpacing:".5px"}}>Health Score</div>
                 <div style={{fontSize:44,fontWeight:900,letterSpacing:"-2px",color:"#fff",lineHeight:1}}>{healthScore}</div>
                 <div style={{fontSize:13,color:"rgba(255,255,255,.85)",marginTop:4,fontWeight:600}}>{scoreLabel(healthScore)}</div>
-                {hy>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:8}}>≈ {hy} in human years</div>}
+                {hy>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:6}}>≈ {hy} in human years</div>}
+                {streak>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.85)",marginTop:4,fontWeight:700}}>🔥 {streak} day streak</div>}
               </div>
               <svg width={104} height={104} viewBox="0 0 104 104">
                 <circle className="score-track" cx={cx} cy={cy} r={r}/>
@@ -921,6 +966,69 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
                 <div style={{fontSize:11,color:"#a8a29e"}}>{a.sub}</div>
               </div>
             ))}
+          </div>
+
+          {/* DAILY CHECK-IN */}
+          <div className="section-label">📅 DAILY CHECK-IN</div>
+          <div className="card-section fade-up" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:"16px 18px"}}>
+              {todayCheckin?(
+                <div style={{textAlign:"center",padding:"8px 0"}}>
+                  <div style={{fontSize:32,marginBottom:6}}>{todayCheckin.mood==="great"?"🤩":todayCheckin.mood==="good"?"😊":todayCheckin.mood==="okay"?"😐":todayCheckin.mood==="off"?"😟":"🤒"}</div>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{dog.name} is {todayCheckin.mood} today</div>
+                  {streak>0&&<div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#fef3c7",borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:700,color:"#92400e"}}>🔥 {streak} day streak</div>}
+                </div>
+              ):(
+                <>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:12}}>How is {dog.name} today?</div>
+                  <div style={{display:"flex",justifyContent:"space-between"}}>
+                    {[["great","🤩"],["good","😊"],["okay","😐"],["off","😟"],["sick","🤒"]].map(([m,e])=>(
+                      <button key={m} onClick={async()=>{
+                        const entry={date:todayStr,mood:m,id:Date.now()};
+                        setCheckins(c=>[entry,...c]);
+                        if(sb&&dogId)await sb.from('checkins').insert({dog_id:dogId,date:todayStr,mood:m});
+                      }} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:"#fffbeb",border:"1.5px solid #f0e8d6",borderRadius:12,padding:"10px 8px",cursor:"pointer",flex:1,margin:"0 3px",fontFamily:"inherit",transition:"all .15s"}}>
+                        <span style={{fontSize:22}}>{e}</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#78350f",textTransform:"capitalize"}}>{m}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* FOOD CALCULATOR */}
+          <div className="section-label">🥣 FOOD CALCULATOR</div>
+          <div className="card-section fade-up" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:"16px 18px"}}>
+              {!showFoodCalc?(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div><div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Daily portion calculator</div><div style={{fontSize:12,color:"#a8a29e"}}>Enter your food's calories per cup</div></div>
+                  <button className="btn-sm" onClick={()=>setShowFoodCalc(true)}>Calculate</button>
+                </div>
+              ):(
+                <div className="fade-in">
+                  <div style={{marginBottom:12}}>
+                    <label style={{fontSize:12,fontWeight:700,color:"#78350f",display:"block",marginBottom:5}}>Calories per cup (check the bag)</label>
+                    <input className="input" type="number" placeholder="e.g. 400" value={foodCalPerCup} onChange={e=>setFoodCalPerCup(e.target.value)}/>
+                  </div>
+                  {foodCalPerCup&&(
+                    <div className="fade-in" style={{background:"#fef3c7",borderRadius:12,padding:"14px"}}>
+                      <div style={{fontWeight:800,fontSize:15,marginBottom:10}}>{dog.name}'s daily portions</div>
+                      {[["Total daily","≈ "+foodPortions.cups+" cups","🥣"],["Morning meal","≈ "+foodPortions.morning+" cups","☀️"],["Evening meal","≈ "+foodPortions.evening+" cups","🌙"],["Daily calories","≈ "+foodPortions.dailyCal+" kcal","🔥"]].map(([l,v,e])=>(
+                        <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid rgba(245,158,11,.2)"}}>
+                          <span style={{fontSize:13,color:"#78350f"}}>{e} {l}</span>
+                          <span style={{fontWeight:700,fontSize:14,color:"#1c1917"}}>{v}</span>
+                        </div>
+                      ))}
+                      <p style={{fontSize:11,color:"#92400e",marginTop:8}}>Based on {dog.name}'s weight & age. Adjust ±10% based on body condition.</p>
+                    </div>
+                  )}
+                  <button className="btn-ghost-sm" style={{marginTop:10}} onClick={()=>{setShowFoodCalc(false);setFoodCalPerCup("");}}>Close</button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* DAILY TIP */}
@@ -1097,6 +1205,76 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
                 }}>Add</button></div>
               </div>}
               {meds.length>0&&!showMedForm&&<button className="btn-ghost-sm" style={{width:"100%",marginTop:12}} onClick={()=>setShowMedForm(true)}>+ Add Another</button>}
+            </div>
+          </div>
+
+          {/* WEIGHT TRACKING */}
+          <div className="section-label">⚖️ WEIGHT TRACKER</div>
+          <div className="card-section">
+            <div style={{padding:18}}>
+              <div style={{display:"flex",gap:8,marginBottom:14}}>
+                <input className="input-sm" style={{flex:1}} type="number" placeholder={`Weight (lbs)`} value={newWeight} onChange={e=>setNewWeight(e.target.value)}/>
+                <input className="input-sm" style={{flex:1}} placeholder="Note (optional)" value={weightNote} onChange={e=>setWeightNote(e.target.value)}/>
+                <button className="btn-sm" disabled={!newWeight} onClick={async()=>{
+                  const entry={weight:parseFloat(newWeight),date:todayStr,notes:weightNote,id:Date.now()};
+                  setWeightLogs(w=>[entry,...w]);setNewWeight("");setWeightNote("");
+                  if(sb&&dogId)await sb.from('weight_logs').insert({dog_id:dogId,weight:parseFloat(newWeight),date:todayStr,notes:weightNote});
+                }}>Log</button>
+              </div>
+              {weightLogs.length===0?(
+                <p style={{fontSize:13,color:"#a8a29e",textAlign:"center",padding:"8px 0"}}>No weight entries yet. Log {dog.name}'s weight to track trends.</p>
+              ):(
+                <>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:4,height:60,marginBottom:10}}>
+                    {weightLogs.slice(0,8).reverse().map((w,i)=>{
+                      const weights=weightLogs.slice(0,8).map(x=>x.weight);
+                      const min=Math.min(...weights),max=Math.max(...weights),range=max-min||1;
+                      const h=20+((w.weight-min)/range)*40;
+                      return<div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                        <div style={{width:"100%",background:"#f59e0b",borderRadius:"4px 4px 0 0",height:h+"px",transition:"height .5s"}}/>
+                        <div style={{fontSize:9,color:"#a8a29e"}}>{w.weight}</div>
+                      </div>;
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:12,color:"#78350f",fontWeight:700}}>Latest: {weightLogs[0].weight} lbs</span>
+                    {weightLogs.length>1&&<span style={{fontSize:12,color:weightLogs[0].weight>weightLogs[1].weight?"#ef4444":weightLogs[0].weight<weightLogs[1].weight?"#10b981":"#a8a29e",fontWeight:700}}>
+                      {weightLogs[0].weight>weightLogs[1].weight?"↑":weightLogs[0].weight<weightLogs[1].weight?"↓":"→"} {Math.abs(weightLogs[0].weight-weightLogs[1].weight).toFixed(1)} lbs since last
+                    </span>}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* SYMPTOM CHECKER */}
+          <div className="section-label">🩺 SYMPTOM CHECKER</div>
+          <div className="card-section">
+            <div style={{padding:18}}>
+              {symptomResult?(
+                <div className="fade-in">
+                  <div style={{background:symptomResult.level==="emergency"?"#fee2e2":symptomResult.level==="vet_today"?"#fff7ed":symptomResult.level==="vet_soon"?"#fef3c7":"#dcfce7",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+                    <div style={{fontSize:13,fontWeight:800,color:symptomResult.level==="emergency"?"#991b1b":symptomResult.level==="vet_today"?"#9a3412":symptomResult.level==="vet_soon"?"#92400e":"#166534",marginBottom:4}}>
+                      {symptomResult.level==="emergency"?"🚨 EMERGENCY — Go to vet now":symptomResult.level==="vet_today"?"🔴 See vet today":symptomResult.level==="vet_soon"?"🟡 Schedule vet visit":"🟢 Monitor at home"}
+                    </div>
+                    <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{symptomResult.headline}</div>
+                    <p style={{fontSize:13,lineHeight:1.6,color:"#44403c"}}>{symptomResult.advice}</p>
+                    {symptomResult.signs_to_watch?.length>0&&<div style={{marginTop:8}}><div style={{fontSize:11,fontWeight:700,color:"#78350f",marginBottom:4}}>WATCH FOR:</div>{symptomResult.signs_to_watch.map((s,i)=><div key={i} style={{fontSize:12,color:"#57534e",marginBottom:2}}>• {s}</div>)}</div>}
+                  </div>
+                  <button className="btn-ghost-sm" onClick={()=>{setSymptomResult(null);setSymptomInput("");}}>Check another symptom</button>
+                </div>
+              ):(
+                <>
+                  <p style={{fontSize:13,color:"#78350f",marginBottom:12}}>Describe what you're seeing with {dog.name} and get an instant triage assessment.</p>
+                  <textarea className="input" rows={3} style={{resize:"none",marginBottom:10,fontSize:13}} placeholder={`e.g. "${dog.name} has been limping on her front left leg since this morning..."`} value={symptomInput} onChange={e=>setSymptomInput(e.target.value)}/>
+                  <button className="btn-sm" style={{width:"100%"}} disabled={!symptomInput.trim()||symptomLoading} onClick={async()=>{
+                    setSymptomLoading(true);
+                    try{const r=await fetch('/api/symptoms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symptoms:symptomInput,dog})});const d=await r.json();setSymptomResult(d);}
+                    catch{setSymptomResult({level:"watch",headline:"Couldn't assess",advice:"Please describe the symptoms again or contact your vet directly.",signs_to_watch:[]});}
+                    setSymptomLoading(false);
+                  }}>{symptomLoading?"Assessing...":"Check Symptoms →"}</button>
+                </>
+              )}
             </div>
           </div>
 
