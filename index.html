@@ -650,7 +650,7 @@ function Onboarding({onDone}){
 // ──────────────────────────────────────────────
 // DASHBOARD
 // ──────────────────────────────────────────────
-function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
+function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveComplete}){
   const [tab,setTab]=useState("home");
   const [msgs,setMsgs]=useState([{from:"ai",text:`Hey! 👋 I'm your Dog Boy AI — and I actually know about ${dog.name}.\n\nAsk me anything about behavior, health, food, or training. I give answers based on ${dog.name}'s specific profile, not generic dog advice.\n\nAnd don't miss the **Shop tab** — I've put together personalized product picks based on ${dog.name}'s breed and personality. 🛍️`}]);
   const [input,setInput]=useState("");
@@ -721,11 +721,28 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
         if(meds.length)await sb.from('medications').insert(meds.map(m=>({dog_id:dogData.id,name:m.name,dose:m.dose,frequency:m.frequency,next_due:m.nextDue||""})));
         if(vet.name)await sb.from('vet_info').insert({dog_id:dogData.id,name:vet.name,phone:vet.phone,address:vet.address,next_appt:vet.nextAppt});
         if(logs.length)await sb.from('health_logs').insert(logs.map(l=>({dog_id:dogData.id,note:l.note,mood:l.category,date:l.date})));
-        onSaveComplete&&onSaveComplete(dogData.id,data.user);
+        onSaveComplete&&onSaveComplete(dogData.id,data.user,dogData);
       }
       setSavedOk(true);setShowSaveBanner(false);
     }catch(e){setSaveError(e.message);}
     finally{setSaving(false);}
+  };
+
+  // Dog photo
+  const [dogPhoto,setDogPhoto]=useState(dog.photo_url||null);
+  const photoInputRef=useRef(null);
+  const uploadPhoto=async(e)=>{
+    const file=e.target.files?.[0];if(!file||!sb||!dogId)return;
+    const ext=file.name.split('.').pop();
+    const path=`${dogId}/avatar.${ext}`;
+    const{error}=await sb.storage.from('dog-photos').upload(path,file,{upsert:true,contentType:file.type});
+    if(!error){
+      const{data}=sb.storage.from('dog-photos').getPublicUrl(path);
+      const url=data.publicUrl;
+      await sb.from('dogs').update({photo_url:url}).eq('id',dogId);
+      setDogPhoto(url);
+    }
+    e.target.value="";
   };
 
   const products=useMemo(()=>getProducts(dog),[dog]);
@@ -785,11 +802,20 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
       <div className="top-header">
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:38,height:38,borderRadius:"50%",background:"#fef3c7",border:"2px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{dogE}</div>
+            <div style={{width:38,height:38,borderRadius:"50%",background:"#fef3c7",border:"2px solid #f59e0b",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+              {dogPhoto?<img src={dogPhoto} alt={dog.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:dogE}
+            </div>
             <div>
               <div style={{fontWeight:800,fontSize:15,letterSpacing:"-0.3px"}}>{dog.name}</div>
               <div style={{fontSize:11,color:"#a8a29e"}}>{dog.breed}{dog.age?` · ${dog.age} yrs`:""}{dog.weight?` · ${dog.weight} lbs`:""}</div>
             </div>
+            {dogs?.length>1&&(
+              <div style={{display:"flex",gap:4,marginLeft:4}}>
+                {dogs.map((d,i)=>(
+                  <button key={d.id||i} onClick={()=>onSwitchDog&&onSwitchDog(d)} style={{width:8,height:8,borderRadius:"50%",border:"none",cursor:"pointer",padding:0,background:d.id===dog.id?"#f59e0b":"#e7dfc8",transition:"all .2s"}}/>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {(overdue.length>0||dueSoon.length>0)&&(
@@ -1109,7 +1135,7 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
                     <div style={{fontSize:12.5,color:"#44403c",lineHeight:1.6,marginBottom:10,background:"#fffbeb",borderRadius:9,padding:"8px 11px",borderLeft:"3px solid #f59e0b"}}>
                       <span style={{fontWeight:700,color:"#78350f"}}>Why for {dog.name}: </span>{p.why}
                     </div>
-                    <a href={`https://www.chewy.com/search?query=${p.q}`} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none"}}><button className="btn-sm">Shop on Chewy →</button></a>
+                    <a href={`https://www.chewy.com/search?query=${encodeURIComponent(p.q.replace(/\+/g,' '))}&utm_source=dogboy&utm_medium=app&utm_campaign=ai-picks`} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none"}} onClick={()=>console.log('chewy_click',p.q)}><button className="btn-sm">Shop on Chewy →</button></a>
                   </div>
                 </div>
               </div>
@@ -1155,7 +1181,11 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
         {/* ── PROFILE TAB ── */}
         {tab==="profile"&&<div style={{padding:"16px 0 24px"}}>
           <div className="card-section fade-up" style={{textAlign:"center",padding:"24px 20px",margin:"0 16px 14px"}}>
-            <div style={{width:76,height:76,borderRadius:"50%",background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"3px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 14px",boxShadow:"0 4px 20px rgba(245,158,11,.25)"}}>{dogE}</div>
+            <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={uploadPhoto}/>
+            <div onClick={()=>dogId&&photoInputRef.current?.click()} style={{width:76,height:76,borderRadius:"50%",background:"linear-gradient(135deg,#fef3c7,#fde68a)",border:"3px solid #f59e0b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 10px",boxShadow:"0 4px 20px rgba(245,158,11,.25)",cursor:dogId?"pointer":"default",overflow:"hidden",position:"relative"}}>
+              {dogPhoto?<img src={dogPhoto} alt={dog.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:dogE}
+              {dogId&&<div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,.35)",fontSize:9,fontWeight:700,color:"#fff",padding:"3px 0",textAlign:"center",letterSpacing:".3px"}}>EDIT</div>}
+            </div>
             <h2 style={{fontSize:26,fontWeight:900,letterSpacing:"-0.5px",marginBottom:4}}>{dog.name}</h2>
             <p style={{fontSize:14,color:"#78350f",fontWeight:600,marginBottom:10}}>{dog.breed}</p>
             <div style={{display:"flex",justifyContent:"center",gap:12}}>
@@ -1221,6 +1251,7 @@ function App(){
   const [page,setPage]=useState("loading");
   const [dog,setDog]=useState(null);
   const [dogId,setDogId]=useState(null);
+  const [dogs,setDogs]=useState([]);
   const [user,setUser]=useState(null);
   const [sb,setSb]=useState(null);
   const [pendingDog,setPendingDog]=useState(null);
@@ -1241,10 +1272,12 @@ function App(){
   },[]);
 
   const loadDog=async(client,userId)=>{
-    const{data}=await client.from('dogs').select('*').eq('user_id',userId).maybeSingle();
-    if(data){setDog(data);setDogId(data.id);setPage("dashboard");}
+    const{data}=await client.from('dogs').select('*').eq('user_id',userId).order('created_at',{ascending:true});
+    if(data?.length){setDogs(data);setDog(data[0]);setDogId(data[0].id);setPage("dashboard");}
     else{setPage("onboarding");}
   };
+
+  const switchDog=(d)=>{setDog(d);setDogId(d.id);};
 
   const logout=async()=>{
     if(sb)await sb.auth.signOut();
@@ -1260,9 +1293,21 @@ function App(){
     <>
       {showSplash&&<Splash done={()=>setShowSplash(false)}/>}
       {page==="landing"&&<Landing onStart={()=>setPage("onboarding")}/>}
-      {page==="onboarding"&&<Onboarding onDone={d=>{setPendingDog(d);setPage(sb?"account-setup":"dashboard");setDog(d);}}/>}
+      {page==="onboarding"&&<Onboarding onDone={async d=>{
+        setPendingDog(d);setDog(d);
+        if(sb&&user){
+          const{data}=await sb.from('dogs').insert({user_id:user.id,name:d.name,breed:d.breed,age:d.age,weight:d.weight,sex:d.sex,traits:d.traits||[]}).select().single();
+          if(data){
+            await sb.from('vaccines').insert(DEFAULT_VACCINES.map(v=>({dog_id:data.id,name:v.name,required:v.required,frequency:v.frequency,last_given:"",next_due:"",notes:""})));
+            setDogs(prev=>[...prev,data]);setDog(data);setDogId(data.id);
+          }
+          setPage("dashboard");
+        } else {
+          setPage(sb?"account-setup":"dashboard");
+        }
+      }}/>}
       {page==="account-setup"&&pendingDog&&sb&&<AccountSetup dog={pendingDog} sb={sb} onSaved={(dogData,u)=>{setDog(dogData);setDogId(dogData.id);setUser(u);setPage("dashboard");}} onSkip={()=>setPage("dashboard")}/>}
-      {page==="dashboard"&&dog&&<Dashboard dog={dog} dogId={dogId} sb={sb} user={user} onReset={()=>setPage("onboarding")} onLogout={logout} onSaveComplete={(id,u)=>{setDogId(id);setUser(u);}}/>}
+      {page==="dashboard"&&dog&&<Dashboard dog={dog} dogId={dogId} sb={sb} user={user} dogs={dogs} onSwitchDog={switchDog} onReset={()=>setPage("onboarding")} onLogout={logout} onSaveComplete={(id,u,dogData)=>{setDogId(id);setUser(u);if(dogData){setDogs([dogData]);setDog(dogData);}}}/>}
     </>
   );
 }
