@@ -1,4 +1,11 @@
 {
+  "outputDirectory": ".",
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/sw.js", "dest": "/public/sw.js" },
+    { "src": "/(.*\\.(png|ico|webmanifest|json))", "dest": "/public/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
   "crons": [
     {
       "path": "/api/push-notify",
