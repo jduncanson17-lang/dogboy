@@ -14,6 +14,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
@@ -754,6 +755,12 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     if(!user&&!dogId&&msgs.length>=2&&!savedOk)setShowSaveBanner(true);
   },[msgs.length]);
 
+  // Rating prompt: show after 5 AI replies if not yet dismissed
+  useEffect(()=>{
+    const aiCount=msgs.filter(m=>m.from==="ai").length;
+    if(aiCount>=5&&!ratingDismissed&&user)setShowRatingPrompt(true);
+  },[msgs.length]);
+
   const saveProgress=async()=>{
     if(!sb||!saveEmail||!savePassword)return;
     setSaving(true);setSaveError("");
@@ -816,6 +823,9 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
   // Milestones
   const [milestones,setMilestones]=useState([]);
   const [showMilestoneForm,setShowMilestoneForm]=useState(false);
+  const [showShareCard,setShowShareCard]=useState(false);
+  const [showRatingPrompt,setShowRatingPrompt]=useState(false);
+  const [ratingDismissed,setRatingDismissed]=useState(()=>localStorage.getItem('db_rating_done')==='1');
   const [newMilestone,setNewMilestone]=useState({title:"",date:"",emoji:"🎉"});
 
   // Birthday
@@ -1544,6 +1554,17 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
               ))}
             </div>
           </div>
+          {/* SHARE DOG CARD */}
+          <div className="card-section" style={{margin:"0 16px 14px"}}>
+            <div style={{padding:18}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#a8a29e",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📤 Share & Invite</div>
+              <button onClick={()=>setShowShareCard(true)} style={{width:"100%",background:"linear-gradient(135deg,#f59e0b,#d97706)",border:"none",borderRadius:12,padding:"14px",fontFamily:"inherit",fontWeight:700,fontSize:15,color:"#fff",cursor:"pointer",marginBottom:10,boxShadow:"0 4px 16px rgba(245,158,11,.35)"}}>
+                🐾 Share {dog.name}'s Dog Card
+              </button>
+              <ReferralButton user={user} dog={dog}/>
+            </div>
+          </div>
+
           <div style={{margin:"0 16px 14px",display:"flex",flexDirection:"column",gap:10}}>
             <button onClick={onReset} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #f0e8d6",borderRadius:12,color:"#78350f",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>+ Add Another Dog</button>
             <button onClick={onLogout} style={{width:"100%",textAlign:"center",background:"#fff",border:"2px solid #fee2e2",borderRadius:12,color:"#991b1b",fontSize:14,fontWeight:700,padding:"13px",cursor:"pointer"}}>Log Out</button>
@@ -1569,6 +1590,166 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
             <span className="nav-label" style={{color:tab===id?"#f59e0b":"#a8a29e"}}>{label}</span>
           </button>
         ))}
+      </div>
+
+      {/* SHARE CARD MODAL */}
+      {showShareCard&&<ShareCard dog={dog} healthScore={healthScore} dogPhoto={dogPhoto} onClose={()=>setShowShareCard(false)}/>}
+
+      {/* RATING PROMPT */}
+      {showRatingPrompt&&!ratingDismissed&&<RatingPrompt onDismiss={()=>{localStorage.setItem('db_rating_done','1');setRatingDismissed(true);setShowRatingPrompt(false);}}/>}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// REFERRAL BUTTON
+// ──────────────────────────────────────────────
+function ReferralButton({user,dog}){
+  const [copied,setCopied]=useState(false);
+  const refCode=user?btoa(user.id).replace(/[^a-zA-Z0-9]/g,'').slice(0,8):null;
+  const refUrl=refCode?`${window.location.origin}?ref=${refCode}`:`${window.location.origin}`;
+  const refText=`I use Dog Boy to track ${dog?.name||"my dog"}'s health with AI 🐾 Try it free →`;
+
+  const share=async()=>{
+    if(navigator.share){
+      try{await navigator.share({title:"Dog Boy — AI Dog Companion",text:refText,url:refUrl});return;}
+      catch(e){if(e.name==='AbortError')return;}
+    }
+    await navigator.clipboard.writeText(`${refText} ${refUrl}`);
+    setCopied(true);setTimeout(()=>setCopied(false),2500);
+  };
+
+  return(
+    <button onClick={share} style={{width:"100%",background:copied?"#ecfdf5":"#fffbeb",border:`2px solid ${copied?"#10b981":"#e7dfc8"}`,borderRadius:12,padding:"11px",fontFamily:"inherit",fontWeight:600,fontSize:14,color:copied?"#065f46":"#78350f",cursor:"pointer",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      {copied?"✓ Link Copied!":"🔗 Invite a Friend"}
+    </button>
+  );
+}
+
+// ──────────────────────────────────────────────
+// RATING PROMPT
+// ──────────────────────────────────────────────
+function RatingPrompt({onDismiss}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:9500,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:16}}>
+      <div className="slide-up" style={{background:"#fff",borderRadius:24,padding:"28px 24px",width:"100%",maxWidth:400,textAlign:"center"}}>
+        <div style={{fontSize:52,marginBottom:12}}>🐾</div>
+        <h2 style={{fontSize:22,fontWeight:900,letterSpacing:"-0.5px",marginBottom:8}}>Enjoying Dog Boy?</h2>
+        <p style={{fontSize:14,color:"#78350f",lineHeight:1.6,marginBottom:22}}>Your review helps other dog parents discover the app. It takes 10 seconds and means everything to us!</p>
+        <div style={{display:"flex",fontSize:28,justifyContent:"center",gap:4,marginBottom:22}}>{"⭐".repeat(5)}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <a href="https://apps.apple.com/app/id6738199543" target="_blank" rel="noopener" onClick={onDismiss} style={{display:"block",background:"#f59e0b",borderRadius:12,padding:"14px",fontFamily:"inherit",fontWeight:700,fontSize:15,color:"#fff",textDecoration:"none",boxShadow:"0 4px 16px rgba(245,158,11,.35)"}}>
+            ⭐ Rate Dog Boy
+          </a>
+          <button onClick={onDismiss} style={{background:"none",border:"none",color:"#a8a29e",fontSize:13,cursor:"pointer",padding:"8px",fontFamily:"inherit"}}>
+            Maybe later
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// SHARE CARD
+// ──────────────────────────────────────────────
+function ShareCard({dog,healthScore,dogPhoto,onClose}){
+  const cardRef=useRef(null);
+  const [sharing,setSharing]=useState(false);
+  const [copied,setCopied]=useState(false);
+  const dogE=dog.sex==="female"?"🐕‍🦺":"🐕";
+  const scoreColor=healthScore>=80?"#10b981":healthScore>=60?"#f59e0b":"#ef4444";
+  const shareUrl=window.location.origin;
+  const shareText=`${dog.name} has a ${healthScore}/100 health score on Dog Boy 🐾 The AI app that actually knows your dog. Check it out →`;
+
+  const downloadCard=async()=>{
+    if(!cardRef.current||!window.html2canvas)return;
+    setSharing(true);
+    try{
+      const canvas=await html2canvas(cardRef.current,{scale:2,useCORS:true,backgroundColor:null});
+      const link=document.createElement('a');
+      link.download=`${dog.name}-dogboy.png`;
+      link.href=canvas.toDataURL('image/png');
+      link.click();
+    }catch(e){console.error(e);}
+    setSharing(false);
+  };
+
+  const nativeShare=async()=>{
+    if(!cardRef.current)return;
+    setSharing(true);
+    try{
+      if(window.html2canvas){
+        const canvas=await html2canvas(cardRef.current,{scale:2,useCORS:true,backgroundColor:null});
+        canvas.toBlob(async blob=>{
+          const file=new File([blob],`${dog.name}-dogboy.png`,{type:'image/png'});
+          if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+            await navigator.share({files:[file],title:`${dog.name} on Dog Boy`,text:shareText});
+          } else if(navigator.share){
+            await navigator.share({title:`${dog.name} on Dog Boy`,text:shareText,url:shareUrl});
+          } else {
+            await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+            setCopied(true);setTimeout(()=>setCopied(false),2500);
+          }
+        },'image/png');
+      }
+    }catch(e){if(e.name!=='AbortError')console.error(e);}
+    setSharing(false);
+  };
+
+  const copyLink=async()=>{
+    await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+    setCopied(true);setTimeout(()=>setCopied(false),2500);
+  };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:9000,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      {/* The card itself */}
+      <div ref={cardRef} style={{width:320,background:"linear-gradient(145deg,#1c1917 0%,#292524 100%)",borderRadius:24,padding:28,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:"50%",background:"rgba(245,158,11,.08)"}}/>
+        <div style={{position:"absolute",bottom:-30,left:-30,width:120,height:120,borderRadius:"50%",background:"rgba(245,158,11,.05)"}}/>
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,position:"relative"}}>
+          <div style={{width:64,height:64,borderRadius:"50%",border:"3px solid #f59e0b",overflow:"hidden",background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>
+            {dogPhoto?<img src={dogPhoto} alt={dog.name} style={{width:"100%",height:"100%",objectFit:"cover"}} crossOrigin="anonymous"/>:dogE}
+          </div>
+          <div>
+            <div style={{fontWeight:900,fontSize:22,color:"#fff",letterSpacing:"-0.5px"}}>{dog.name}</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.6)",marginTop:2}}>{dog.breed}{dog.age?` · ${dog.age} yrs`:""}</div>
+          </div>
+        </div>
+        <div style={{background:"rgba(255,255,255,.05)",borderRadius:16,padding:"16px 18px",marginBottom:16,position:"relative"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.5)",textTransform:"uppercase",letterSpacing:".8px",marginBottom:6}}>Health Score</div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+            <div style={{fontSize:52,fontWeight:900,color:scoreColor,lineHeight:1,letterSpacing:"-2px"}}>{healthScore}</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,.5)",marginBottom:6}}>/100</div>
+          </div>
+          <div style={{height:6,background:"rgba(255,255,255,.1)",borderRadius:99,marginTop:10,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${healthScore}%`,background:`linear-gradient(90deg,${scoreColor},${scoreColor}cc)`,borderRadius:99}}/>
+          </div>
+        </div>
+        {dog.traits?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16,position:"relative"}}>
+          {dog.traits.slice(0,4).map(t=><span key={t} style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:600}}>{t}</span>)}
+        </div>}
+        <div style={{display:"flex",alignItems:"center",gap:6,position:"relative"}}>
+          <span style={{fontSize:16}}>🐾</span>
+          <span style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.5)"}}>Dog Boy — AI Dog Companion</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{width:320,marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+        <button onClick={nativeShare} disabled={sharing} style={{background:"#f59e0b",border:"none",borderRadius:12,padding:"14px",fontFamily:"inherit",fontWeight:700,fontSize:15,color:"#fff",cursor:"pointer",opacity:sharing?.6:1}}>
+          {sharing?"Generating...":"📤 Share Card"}
+        </button>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={downloadCard} disabled={sharing} style={{flex:1,background:"rgba(255,255,255,.1)",border:"none",borderRadius:12,padding:"12px",fontFamily:"inherit",fontWeight:600,fontSize:13,color:"#fff",cursor:"pointer"}}>
+            ⬇️ Save Image
+          </button>
+          <button onClick={copyLink} style={{flex:1,background:copied?"rgba(16,185,129,.2)":"rgba(255,255,255,.1)",border:"none",borderRadius:12,padding:"12px",fontFamily:"inherit",fontWeight:600,fontSize:13,color:copied?"#10b981":"#fff",cursor:"pointer",transition:"all .2s"}}>
+            {copied?"✓ Copied!":"🔗 Copy Link"}
+          </button>
+        </div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"rgba(255,255,255,.5)",fontSize:13,cursor:"pointer",padding:"8px",fontFamily:"inherit"}}>Close</button>
       </div>
     </div>
   );
