@@ -739,12 +739,33 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
   const dueSoon=vaccines.filter(v=>{if(!v.nextDue)return false;const d=(new Date(v.nextDue)-new Date())/86400000;return d>=0&&d<30;});
   const dogE=dog.sex==="female"?"🐕‍🦺":"🐕";
 
+  const [pendingImage,setPendingImage]=useState(null); // {base64, type, preview}
+  const fileInputRef=useRef(null);
+
   useEffect(()=>{msgEnd.current?.scrollIntoView({behavior:"smooth"});},[msgs,typing]);
 
+  const handleImageSelect=(e)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const dataUrl=ev.target.result;
+      const base64=dataUrl.split(',')[1];
+      setPendingImage({base64,type:file.type,preview:dataUrl});
+    };
+    reader.readAsDataURL(file);
+    e.target.value="";
+  };
+
   const sendMsg=(text)=>{
-    const msg=text||input.trim();if(!msg)return;
-    setMsgs(m=>[...m,{from:"user",text:msg}]);setInput("");setTyping(true);
-    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,dog})})
+    const msg=text||input.trim();
+    if(!msg&&!pendingImage)return;
+    const userMsg={from:"user",text:msg||"📷 Photo sent",image:pendingImage?.preview||null};
+    setMsgs(m=>[...m,userMsg]);setInput("");setTyping(true);
+    const body={message:msg||"What do you see in this photo? Give me advice based on my dog.",dog};
+    if(pendingImage){body.imageBase64=pendingImage.base64;body.imageType=pendingImage.type;}
+    setPendingImage(null);
+    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(r=>r.json())
       .then(data=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:data.text||"Sorry, I had trouble with that. Try again?"}]);})
       .catch(()=>{setTyping(false);setMsgs(m=>[...m,{from:"ai",text:"Connection issue — please try again."}]);});
@@ -912,17 +933,33 @@ function Dashboard({dog,dogId,sb,user,onReset,onLogout,onSaveComplete}){
             <div className="chat-messages">
               {msgs.length===1&&<div className="fade-in" style={{display:"flex",flexWrap:"wrap",gap:7}}>{suggs.map(s=><span key={s} className="chip" onClick={()=>sendMsg(s)}>{s}</span>)}</div>}
               {msgs.map((m,i)=>(
-                <div key={i} className={`fade-in ${m.from==="user"?"bubble-user":"bubble-ai"}`} style={{alignSelf:m.from==="user"?"flex-end":"flex-start",whiteSpace:"pre-wrap"}}>{bold(m.text)}</div>
+                <div key={i} className={`fade-in ${m.from==="user"?"bubble-user":"bubble-ai"}`} style={{alignSelf:m.from==="user"?"flex-end":"flex-start",whiteSpace:"pre-wrap"}}>
+                  {m.image&&<img src={m.image} alt="uploaded" style={{display:"block",maxWidth:"100%",borderRadius:10,marginBottom:m.text&&m.text!=="📷 Photo sent"?6:0,maxHeight:200,objectFit:"cover"}}/>}
+                  {m.text&&m.text!=="📷 Photo sent"&&bold(m.text)}
+                </div>
               ))}
               {typing&&<div className="bubble-ai fade-in" style={{alignSelf:"flex-start",padding:"14px 18px"}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>}
               <div ref={msgEnd}/>
             </div>
           </div>
-          <div className="chat-input-bar">
-            <textarea className="chat-textarea" rows={1} placeholder={`Ask anything about ${dog.name}...`} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}}} disabled={typing}/>
-            <button className="send-btn" onClick={()=>sendMsg()} disabled={!input.trim()||typing}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
+          <div className="chat-input-bar" style={{flexDirection:"column",gap:0}}>
+            {pendingImage&&(
+              <div className="fade-in" style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,background:"#fef3c7",borderRadius:10,padding:"6px 10px"}}>
+                <img src={pendingImage.preview} alt="preview" style={{width:40,height:40,borderRadius:7,objectFit:"cover",flexShrink:0}}/>
+                <span style={{fontSize:12,color:"#78350f",fontWeight:600,flex:1}}>Photo ready — add a message or send now</span>
+                <button onClick={()=>setPendingImage(null)} style={{background:"none",border:"none",color:"#a8a29e",fontSize:18,cursor:"pointer",padding:"0 4px",lineHeight:1}}>×</button>
+              </div>
+            )}
+            <div style={{display:"flex",gap:9,alignItems:"flex-end",width:"100%"}}>
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleImageSelect}/>
+              <button onClick={()=>fileInputRef.current?.click()} disabled={typing} style={{width:42,height:42,borderRadius:50,background:"#f0e8d6",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .15s"}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#78350f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </button>
+              <textarea className="chat-textarea" rows={1} placeholder={`Ask anything about ${dog.name}...`} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}}} disabled={typing}/>
+              <button className="send-btn" onClick={()=>sendMsg()} disabled={(!input.trim()&&!pendingImage)||typing}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
+            </div>
           </div>
         </>}
 

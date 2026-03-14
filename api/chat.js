@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { message, dog } = req.body || {};
-  if (!message) return res.status(400).json({ error: 'No message provided' });
+  const { message, dog, imageBase64, imageType } = req.body || {};
+  if (!message && !imageBase64) return res.status(400).json({ error: 'No message provided' });
 
   const system = `You are Dog Boy, a warm and knowledgeable AI dog parenting companion. You give personalized, practical advice based on the user's specific dog.
 
@@ -19,8 +19,30 @@ Guidelines:
 - Personalize every response using the dog's name, breed, age, and traits
 - Keep responses concise: 2–4 short paragraphs max
 - Use **bold** sparingly for key points
-- For anything that sounds like a medical emergency, always say to call a vet immediately
+- When analyzing photos: describe what you see clearly, then give practical advice
+- For anything that looks or sounds like a medical emergency, always say to call a vet immediately
 - End with a short follow-up question when it fits naturally`;
+
+  // Build message content — text only or text + image
+  let userContent;
+  if (imageBase64) {
+    userContent = [
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: imageType || 'image/jpeg',
+          data: imageBase64,
+        },
+      },
+      {
+        type: 'text',
+        text: message || 'What do you see in this photo? Give me advice based on my dog.',
+      },
+    ];
+  } else {
+    userContent = message;
+  }
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -34,7 +56,7 @@ Guidelines:
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 512,
         system,
-        messages: [{ role: 'user', content: message }],
+        messages: [{ role: 'user', content: userContent }],
       }),
     });
 
