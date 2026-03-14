@@ -824,21 +824,28 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
   const careCalendar=useMemo(()=>getCareCalendar(dog),[dog]);
   const [checkedCare,setCheckedCare]=useState({});
 
-  // Browser notifications
+  // Push notifications setup
   useEffect(()=>{
-    if(!('Notification' in window))return;
-    if(Notification.permission==='default')Notification.requestPermission();
-  },[]);
-  useEffect(()=>{
-    if(Notification.permission!=='granted')return;
-    const overdue=vaccines.filter(v=>v.nextDue&&(new Date(v.nextDue)-new Date())<0);
-    if(overdue.length>0){
-      setTimeout(()=>{try{new Notification('Dog Boy 🐾',{body:`${dog.name}'s ${overdue[0].name} vaccine is overdue!`,icon:'/icon-192.png'});}catch(e){}},2000);
-    }
-    if(bdayInfo?.isToday){
-      setTimeout(()=>{try{new Notification('🎂 Happy Birthday!',{body:`It's ${dog.name}'s birthday today! 🎉`,icon:'/icon-192.png'});}catch(e){}},1500);
-    }
-  },[vaccines,bdayInfo]);
+    if(!user||!dogId||!('serviceWorker' in navigator)||!('PushManager' in window))return;
+    const setup=async()=>{
+      try{
+        const reg=await navigator.serviceWorker.register('/sw.js');
+        const perm=await Notification.requestPermission();
+        if(perm!=='granted')return;
+        const {supabaseKey}=await fetch('/api/config').then(r=>r.json());
+        // Get VAPID public key
+        const existing=await reg.pushManager.getSubscription();
+        const sub=existing||await reg.pushManager.subscribe({
+          userVisibleOnly:true,
+          applicationServerKey:supabaseKey ? urlBase64ToUint8Array('BIbMGMOgEh1EqgwdsiEwzhyKLbyGUSpTTE7S5TNto2EaGDBO1H3OYok17VzHXqRkDbRmZFxYAmmH6UA1ZbhE-Mw') : null
+        });
+        if(sub){
+          await fetch('/api/push-subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:sub.toJSON(),userId:user.id,dogId})});
+        }
+      }catch(e){console.log('Push setup:',e.message);}
+    };
+    setup();
+  },[user,dogId]);
 
   // Dog photo
   const [dogPhoto,setDogPhoto]=useState(dog.photo_url||null);
@@ -1566,6 +1573,8 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     </div>
   );
 }
+
+function urlBase64ToUint8Array(b){const p=b.replace(/-/g,'+').replace(/_/g,'/');const r='='.repeat((4-p.length%4)%4);const raw=atob(p+r);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
 
 // ──────────────────────────────────────────────
 // APP ROOT
