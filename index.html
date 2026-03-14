@@ -468,15 +468,16 @@ function Splash({done}){
 // ──────────────────────────────────────────────
 // LANDING PAGE
 // ──────────────────────────────────────────────
-function Landing({onStart}){
+function Landing({onStart,onLogin}){
   return(
     <div style={{minHeight:"100vh",background:"#fffbeb",overflowY:"auto"}}>
       {/* NAV */}
       <nav style={{background:"#fff",borderBottom:"1px solid #f0e8d6",padding:"0 24px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:22}}>🐾</span><span style={{fontSize:18,fontWeight:900,letterSpacing:"-0.5px"}}>Dog Boy</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
           <span className="hide-mobile" style={{fontSize:14,color:"#57534e",fontWeight:500,cursor:"pointer"}}>Features</span>
           <span className="hide-mobile" style={{fontSize:14,color:"#57534e",fontWeight:500,cursor:"pointer"}}>Pricing</span>
+          <button onClick={onLogin} style={{padding:"9px 18px",fontSize:14,fontWeight:700,background:"none",border:"1.5px solid #e7dfc8",borderRadius:10,cursor:"pointer",color:"#78350f",fontFamily:"inherit",transition:"all .15s"}}>Log In</button>
           <button className="btn btn-primary" style={{padding:"9px 20px",fontSize:14}} onClick={onStart}>Get Started Free</button>
         </div>
       </nav>
@@ -908,7 +909,7 @@ function Dashboard({dog,dogId,sb,user,dogs,onSwitchDog,onReset,onLogout,onSaveCo
     if(!msg&&!pendingImage)return;
     const userMsg={from:"user",text:msg||"📷 Photo sent",image:pendingImage?.preview||null};
     setMsgs(m=>[...m,userMsg]);setInput("");setTyping(true);
-    const body={message:msg||"What do you see in this photo? Give me advice based on my dog.",dog};
+    const body={message:msg||"What do you see in this photo? Give me advice based on my dog.",dog,userId:user?.id,dogId:dog?.id};
     if(pendingImage){body.imageBase64=pendingImage.base64;body.imageType=pendingImage.type;}
     setPendingImage(null);
     fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
@@ -1780,6 +1781,7 @@ function App(){
         else{setPage("landing");}
       });
       client.auth.onAuthStateChange((event,session)=>{
+        if(event==="SIGNED_IN"&&session){setUser(session.user);loadDog(client,session.user.id);}
         if(event==="SIGNED_OUT"){setDog(null);setDogId(null);setUser(null);setPage("landing");}
       });
     }).catch(()=>setPage("landing"));
@@ -1806,7 +1808,8 @@ function App(){
   return(
     <>
       {showSplash&&<Splash done={()=>setShowSplash(false)}/>}
-      {page==="landing"&&<Landing onStart={()=>setPage("onboarding")}/>}
+      {page==="landing"&&<Landing onStart={()=>setPage("onboarding")} onLogin={()=>setPage("auth")}/>}
+      {page==="auth"&&sb&&<AuthScreen sb={sb}/>}
       {page==="onboarding"&&<Onboarding onDone={async d=>{
         setPendingDog(d);setDog(d);
         if(sb&&user){
